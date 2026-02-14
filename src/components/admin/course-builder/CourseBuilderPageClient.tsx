@@ -20,6 +20,8 @@ interface CourseBuilderPageClientProps {
         image?: string;
         video?: string;
         description?: string;
+        students?: string[];
+        cohorts?: string[];
     };
 }
 
