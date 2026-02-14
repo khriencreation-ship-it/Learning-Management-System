@@ -13,6 +13,12 @@ interface Stage1SetupProps {
     setCoverImage: (file: File | null) => void;
     coverImagePreview: string;
     setCoverImagePreview: (preview: string) => void;
+    students?: any[];
+    selectedStudents?: string[];
+    setSelectedStudents?: (ids: string[]) => void;
+    cohorts?: any[];
+    selectedCohorts?: string[];
+    setSelectedCohorts?: (ids: string[]) => void;
 }
 
 export default function Stage1Setup({
@@ -23,7 +29,13 @@ export default function Stage1Setup({
     coverImage,
     setCoverImage,
     coverImagePreview,
-    setCoverImagePreview
+    setCoverImagePreview,
+    students,
+    selectedStudents,
+    setSelectedStudents,
+    cohorts,
+    selectedCohorts,
+    setSelectedCohorts
 }: Stage1SetupProps) {
 
     const [isPickerOpen, setIsPickerOpen] = useState(false);
