@@ -1,8 +1,13 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Search, Plus, MoreHorizontal, Mail, Phone, User, CheckCircle2, XCircle, AlertCircle, Eye, Edit2, Trash2, Upload } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { 
+    Search, Plus, MoreHorizontal, Mail, Phone, User, CheckCircle2, 
+    XCircle, AlertCircle, Eye, Edit2, Trash2, Upload,
+    ChevronLeft, ChevronRight 
+} from 'lucide-react';
 import CreateStudentModal from '../modals/CreateStudentModal';
 import DeleteStudentModal from '../modals/DeleteStudentModal';
 import BulkUploadModal from '../modals/BulkUploadModal';
@@ -21,10 +26,20 @@ interface Student {
 
 interface StudentListClientProps {
     initialStudents: Student[];
+    totalCount: number;
+    currentPage: number;
+    pageSize: number;
 }
 
-export default function StudentListClient({ initialStudents }: StudentListClientProps) {
+export default function StudentListClient({ 
+    initialStudents, 
+    totalCount: initialTotalCount, 
+    currentPage, 
+    pageSize 
+}: StudentListClientProps) {
+    const router = useRouter();
     const [students, setStudents] = useState<Student[]>(initialStudents);
+    const [totalCount, setTotalCount] = useState(initialTotalCount);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -33,6 +48,19 @@ export default function StudentListClient({ initialStudents }: StudentListClient
     const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
     const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
     const { toasts, removeToast, success } = useToast();
+
+    // Sync state with props when initialStudents or initialTotalCount change
+    useEffect(() => {
+        setStudents(initialStudents);
+        setTotalCount(initialTotalCount);
+    }, [initialStudents, initialTotalCount]);
+
+    const totalPages = Math.ceil(totalCount / pageSize);
+
+    const handlePageChange = (newPage: number) => {
+        if (newPage < 1 || newPage > totalPages) return;
+        router.push(`/admin/students?page=${newPage}`);
+    };
 
     const filteredStudents = students.filter(student => {
         if (!student) return false;
@@ -63,6 +91,13 @@ export default function StudentListClient({ initialStudents }: StudentListClient
                         Partial
                     </span>
                 );
+            case 'scholarship':
+                return (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-600 border border-purple-100">
+                        <CheckCircle2 size={12} />
+                        Scholarship
+                    </span>
+                );
             default:
                 return (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-50 text-red-600 border border-red-100">
@@ -75,10 +110,15 @@ export default function StudentListClient({ initialStudents }: StudentListClient
 
     const handleRefresh = async () => {
         try {
-            const res = await fetch('/api/admin/students');
+            const res = await fetch(`/api/admin/students?page=${currentPage}&pageSize=${pageSize}`);
             if (res.ok) {
                 const data = await res.json();
-                setStudents(data);
+                if (data.students) {
+                     setStudents(data.students);
+                     setTotalCount(data.totalCount);
+                } else {
+                     setStudents(data);
+                }
             }
         } catch (err) {
             console.error('Failed to refresh students list', err);
@@ -126,14 +166,14 @@ export default function StudentListClient({ initialStudents }: StudentListClient
             </div>
 
             {/* Stats Overview */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
                 <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4">
                     <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center text-purple-600">
                         <User size={24} />
                     </div>
                     <div>
                         <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Total Students</p>
-                        <p className="text-2xl font-bold text-gray-900">{students.length}</p>
+                        <p className="text-2xl font-bold text-gray-900">{totalCount}</p>
                     </div>
                 </div>
                 <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4">
@@ -152,7 +192,7 @@ export default function StudentListClient({ initialStudents }: StudentListClient
                         <AlertCircle size={24} />
                     </div>
                     <div>
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Partial Payment</p>
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Partial</p>
                         <p className="text-2xl font-bold text-gray-900">
                             {students.filter(s => (s?.paymentStatus || '').toLowerCase() === 'partial').length}
                         </p>
@@ -169,6 +209,17 @@ export default function StudentListClient({ initialStudents }: StudentListClient
                                 const st = (s?.paymentStatus || '').toLowerCase();
                                 return !st || st === 'unpaid';
                             }).length}
+                        </p>
+                    </div>
+                </div>
+                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center text-purple-600">
+                        <CheckCircle2 size={24} />
+                    </div>
+                    <div>
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Scholarship</p>
+                        <p className="text-2xl font-bold text-gray-900">
+                            {students.filter(s => (s?.paymentStatus || '').toLowerCase() === 'scholarship').length}
                         </p>
                     </div>
                 </div>
@@ -200,6 +251,7 @@ export default function StudentListClient({ initialStudents }: StudentListClient
                             <option value="paid">Paid</option>
                             <option value="partial">Partial</option>
                             <option value="unpaid">Unpaid</option>
+                            <option value="scholarship">Scholarship</option>
                         </select>
                     </div>
                 </div>
@@ -298,11 +350,56 @@ export default function StudentListClient({ initialStudents }: StudentListClient
                     </table>
                 </div>
 
-                {/* Table Footer */}
-                <div className="p-6 bg-gray-50/30 border-t border-gray-50 text-center">
-                    <p className="text-xs text-gray-400 font-medium">
-                        Showing {filteredStudents.length} of {students.length} students
+                {/* Table Footer / Pagination */}
+                <div className="p-6 bg-gray-50/30 border-t border-gray-50 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">
+                        Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, totalCount)} of {totalCount} students
                     </p>
+                    
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => handlePageChange(currentPage - 1)}
+                            disabled={currentPage === 1}
+                            className="p-2 bg-white border border-gray-100 rounded-xl text-gray-400 hover:text-primary hover:border-primary disabled:opacity-50 disabled:hover:text-gray-400 disabled:hover:border-gray-100 transition-all shadow-sm"
+                        >
+                            <ChevronLeft size={20} />
+                        </button>
+                        
+                        <div className="flex items-center gap-1">
+                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                let pageNum = i + 1;
+                                if (totalPages > 5) {
+                                    if (currentPage > 3) {
+                                        pageNum = currentPage - 2 + i;
+                                        if (pageNum > totalPages) pageNum = totalPages - (4 - i);
+                                    }
+                                }
+                                if (pageNum > totalPages || pageNum < 1) return null;
+                                
+                                return (
+                                    <button
+                                        key={pageNum}
+                                        onClick={() => handlePageChange(pageNum)}
+                                        className={`w-10 h-10 rounded-xl font-bold text-xs transition-all ${
+                                            currentPage === pageNum 
+                                            ? 'bg-primary text-white shadow-lg shadow-purple-200' 
+                                            : 'bg-white border border-gray-100 text-gray-400 hover:text-primary'
+                                        }`}
+                                    >
+                                        {pageNum}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        <button
+                            onClick={() => handlePageChange(currentPage + 1)}
+                            disabled={currentPage === totalPages}
+                            className="p-2 bg-white border border-gray-100 rounded-xl text-gray-400 hover:text-primary hover:border-primary disabled:opacity-50 disabled:hover:text-gray-400 disabled:hover:border-gray-100 transition-all shadow-sm"
+                        >
+                            <ChevronRight size={20} />
+                        </button>
+                    </div>
                 </div>
             </div>
 

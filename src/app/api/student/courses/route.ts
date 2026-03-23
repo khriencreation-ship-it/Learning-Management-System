@@ -106,23 +106,29 @@ export async function GET(req: NextRequest) {
         const courses = Array.from(courseMap.values())
             .filter((c: any) => ['active', 'published', 'completed'].includes(c.status));
 
-        const formattedCourses = courses.map((c: any) => ({
-            id: c.id,
-            title: c.title,
-            description: c.description,
-            instructor: c.instructor,
-            image: c.image,
-            topics: c.topics_count || 0,
-            lessons: c.lessons_count || 0,
-            quizzes: c.quizzes_count || 0,
-            assignments: c.assignments_count || 0,
-            status: c.status,
-            publishedAt: c.published_at,
-            code: c.code,
-            cohortsCount: c.course_cohorts?.[0]?.count || 0,
-            isLocked: c.isLocked || false,
-            cohortNames: c.cohortNames || []
-        }));
+        const formattedCourses = courses.map((c: any) => {
+            const enrollments = enrollmentsByCourse.get(c.id) || [];
+            const primaryEnrollment = enrollments.find(e => e.cohort_id) || enrollments[0];
+
+            return {
+                id: c.id,
+                title: c.title,
+                description: c.description,
+                instructor: c.instructor,
+                image: c.image,
+                topics: c.topics_count || 0,
+                lessons: c.lessons_count || 0,
+                quizzes: c.quizzes_count || 0,
+                assignments: c.assignments_count || 0,
+                status: c.status,
+                publishedAt: c.published_at,
+                code: c.code,
+                cohortsCount: c.course_cohorts?.[0]?.count || 0,
+                isLocked: c.isLocked || false,
+                cohortNames: c.cohortNames || [],
+                cohortId: primaryEnrollment?.cohort_id || null
+            };
+        });
 
         return NextResponse.json(formattedCourses);
 

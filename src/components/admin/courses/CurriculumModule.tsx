@@ -110,9 +110,9 @@ export default function CurriculumModule({ module, index, courseId, isTutor, isA
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-4">
-                                    {(isTutor || isAdmin) && courseId && item.type === 'assignment' && (
+                                    {isAdmin && courseId && item.type === 'assignment' && (
                                         <Link
-                                            href={isTutor ? `/tutor/courses/${courseId}/submissions/${item.id}` : `/admin/courses/${courseId}/submissions/${item.id}`}
+                                            href={`/admin/courses/${courseId}/submissions/${item.id}`}
                                             className="px-3 py-1 bg-orange-50 text-orange-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-orange-100 hover:bg-orange-500 hover:text-white hover:border-orange-500 transition-all shadow-sm"
                                         >
                                             View Submissions

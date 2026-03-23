@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { X, Search, CheckCircle, Circle, Users, Save } from 'lucide-react';
 import { useToast } from '@/hooks/useToast';
+import { useRouter } from 'next/navigation';
 
 interface EnrollmentModalProps {
     isOpen: boolean;
@@ -22,6 +23,7 @@ interface Student {
 }
 
 export default function EnrollmentModal({ isOpen, onClose, cohortId, courseId, courseTitle }: EnrollmentModalProps) {
+    const router = useRouter();
     const { success, error: toastError } = useToast();
     const [students, setStudents] = useState<Student[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -74,6 +76,23 @@ export default function EnrollmentModal({ isOpen, onClose, cohortId, courseId, c
         ));
     };
 
+    const handleSelectAll = () => {
+        const allEnrolled = filteredStudents.every(s => s.isEnrolled);
+        const filteredIds = new Set(filteredStudents.map(s => s.id));
+
+        if (allEnrolled) {
+            // Deselect all currently filtered students
+            setStudents(prev => prev.map(s =>
+                filteredIds.has(s.id) ? { ...s, isEnrolled: false } : s
+            ));
+        } else {
+            // Select all currently filtered students
+            setStudents(prev => prev.map(s =>
+                filteredIds.has(s.id) ? { ...s, isEnrolled: true } : s
+            ));
+        }
+    };
+
     const handleSave = async () => {
         setIsSaving(true);
         try {
@@ -116,6 +135,7 @@ export default function EnrollmentModal({ isOpen, onClose, cohortId, courseId, c
             }
 
             success("Enrollments updated successfully");
+            router.refresh();
             onClose();
         } catch (err) {
             console.error(err);
@@ -167,6 +187,21 @@ export default function EnrollmentModal({ isOpen, onClose, cohortId, courseId, c
                             className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all font-medium text-sm"
                         />
                     </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex justify-between items-center px-6 py-2 bg-gray-50/50 border-b border-gray-100">
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Results ({filteredStudents.length})
+                    </span>
+                    <button
+                        onClick={handleSelectAll}
+                        className="text-xs font-bold text-purple-600 hover:text-purple-700 transition-colors bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg"
+                    >
+                        {filteredStudents.length > 0 && filteredStudents.every(s => s.isEnrolled)
+                            ? 'Deselect All'
+                            : 'Select All'}
+                    </button>
                 </div>
 
                 {/* List */}

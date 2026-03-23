@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/student/DashboardLayout";
 import {
     ChevronLeft, Play, FileText, CheckSquare, Video, ChevronDown, ChevronUp, ChevronRight,
-    Download, ExternalLink, Search, BookOpen, Clock, Calendar, ArrowRight, X as XIcon, CheckCircle2, Circle
+    Download, ExternalLink, Search, BookOpen, Clock, Calendar, ArrowRight, X as XIcon, CheckCircle2, Circle, Lock
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -66,6 +66,29 @@ const CountdownTimer = ({ targetDate, targetTime }: { targetDate: string, target
     );
 };
 
+const isItemLocked = (item: any) => {
+    // Check both spread metadata and nested metadata object for robustness
+    const hasUnlockDate = item.hasUnlockDate ?? item.metadata?.hasUnlockDate;
+    const unlockDate = item.unlockDate ?? item.metadata?.unlockDate;
+    const unlockTime = item.unlockTime ?? item.metadata?.unlockTime;
+
+    if (!hasUnlockDate || !unlockDate) return false;
+    
+    try {
+        const timeStr = unlockTime || "00:00";
+        // Create date object. Adding :00 because some mobile browsers require HH:mm:ss
+        const unlockDateTime = new Date(`${unlockDate}T${timeStr}:00`);
+        
+        // If date is invalid, we don't lock
+        if (isNaN(unlockDateTime.getTime())) return false;
+        
+        return unlockDateTime.getTime() > new Date().getTime();
+    } catch (e) {
+        console.error("Lock calculation error:", e);
+        return false;
+    }
+};
+
 interface StudentClassroomClientProps {
     course: any;
     exitHref?: string;
@@ -78,6 +101,7 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
     const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
     const [searchTerm, setSearchTerm] = useState("");
     const [completedItems, setCompletedItems] = useState<Set<string>>(new Set());
+    const [isQuizActive, setIsQuizActive] = useState(false);
     const { showToast } = useToast();
 
     // Initialize with first item
@@ -164,6 +188,20 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
         }
     };
 
+    const handleJoinLiveClass = async (liveClass: any) => {
+        // Mark as completed/attended if not already done
+        if (!completedItems.has(liveClass.id)) {
+            await toggleComplete(liveClass.id, false);
+        }
+        
+        // Open meeting link in a new tab
+        if (liveClass.meetingLink) {
+            window.open(liveClass.meetingLink, '_blank', 'noopener,noreferrer');
+        } else {
+            showToast("Meeting link not available yet.", "error");
+        }
+    };
+
     const toggleModule = (moduleId: string) => {
         const newExpanded = new Set(expandedModules);
         if (newExpanded.has(moduleId)) newExpanded.delete(moduleId);
@@ -171,7 +209,8 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
         setExpandedModules(newExpanded);
     };
 
-    const getItemIcon = (type: string) => {
+    const getItemIcon = (type: string, isLocked: boolean = false) => {
+        if (isLocked) return <Lock size={18} className="text-gray-400" />;
         switch (type) {
             case 'quiz': return <CheckSquare size={18} className="text-emerald-500" />;
             case 'assignment': return <FileText size={18} className="text-orange-500" />;
@@ -314,8 +353,8 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
                         </div>
 
                         {!isPast ? (
-                            <div className="space-y-6">
-                                <h2 className="text-2xl font-bold text-white">Class starts in:</h2>
+                            <div className="space-y-6 flex flex-col items-center">
+                                <h2 className="text-2xl font-bold text-white italic">Class starts in:</h2>
                                 <CountdownTimer targetDate={liveClass.date} targetTime={liveClass.time} />
                                 <div className="flex items-center gap-6 text-gray-400 justify-center pt-4">
                                     <div className="flex items-center gap-2">
@@ -353,16 +392,14 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
                             return (
                                 <div className="space-y-8">
                                     <h1 className="text-4xl font-black text-white">The session has started!</h1>
-                                    <a
-                                        href={liveClass.meetingLink || "#"}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
+                                    <button
+                                        onClick={() => handleJoinLiveClass(liveClass)}
                                         className="inline-flex items-center gap-3 px-10 py-5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-3xl font-black text-lg hover:scale-105 transition-all shadow-2xl shadow-purple-500/40 group active:scale-95"
                                     >
                                         <Video size={24} />
                                         Join Google Meet
                                         <ArrowRight size={24} className="group-hover:translate-x-1 transition-transform" />
-                                    </a>
+                                    </button>
                                     <p className="text-purple-200 text-sm font-medium">Click the button above to join the class room.</p>
                                 </div>
                             );
@@ -373,7 +410,7 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
                 <div className="max-w-4xl mx-auto p-12 space-y-8">
                     <h1 className="text-4xl font-black text-gray-900 tracking-tight">{liveClass.title}</h1>
                     <div className="p-8 bg-gray-50 rounded-[2.5rem] border border-gray-100">
-                        <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">About this session</h4>
+                        <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 italic">About this session</h4>
                         <p className="text-gray-600 text-lg leading-relaxed font-medium">
                             {liveClass.description || "No specific instructions provided for this live session. Please be on time!"}
                         </p>
@@ -383,8 +420,75 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
         );
     };
 
+    const renderLockedView = (item: any) => {
+        const unlockTimeStr = item.unlockTime || "00:00";
+        const iconMap: Record<string, any> = {
+            'quiz': CheckSquare,
+            'assignment': FileText,
+            'live-class': Video,
+            'live_class': Video
+        };
+        const Icon = iconMap[item.type] || Lock;
+        const typeLabel = (item.type || 'Content').replace(/[-_]/g, ' ').toUpperCase();
+
+        return (
+            <div className="flex-1 overflow-y-auto bg-white">
+                {/* Hero Header for Locked Content */}
+                <div className="w-full min-h-[400px] bg-slate-900 relative flex items-center justify-center px-6 py-12 overflow-hidden">
+                    {/* Abstract background */}
+                    <div className="absolute inset-0 opacity-20 pointer-events-none select-none">
+                        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-600 blur-[120px] rounded-full" />
+                        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-600 blur-[120px] rounded-full" />
+                    </div>
+
+                    <div className="relative z-10 flex flex-col items-center text-center space-y-8 max-w-2xl">
+                        <div className="flex flex-col items-center space-y-4">
+                            <div className="w-20 h-20 rounded-3xl bg-purple-500/20 flex items-center justify-center text-purple-400 border border-purple-500/30">
+                                <Icon size={40} />
+                            </div>
+                            <span className="px-4 py-1.5 bg-purple-500 text-white rounded-full text-xs font-black uppercase tracking-[0.2em] shadow-lg shadow-purple-500/20">
+                                {typeLabel}
+                            </span>
+                        </div>
+
+                        <div className="space-y-6 flex flex-col items-center">
+                            <h2 className="text-2xl font-bold text-white italic">
+                                {item.type === 'quiz' ? 'Quiz starts in:' : 'Content available in:'}
+                            </h2>
+                            <CountdownTimer targetDate={item.unlockDate} targetTime={unlockTimeStr} />
+                            <div className="flex items-center gap-6 text-gray-400 justify-center pt-4">
+                                <div className="flex items-center gap-2">
+                                    <Calendar size={18} className="text-purple-400" />
+                                    <span className="font-bold">{new Date(item.unlockDate).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Clock size={18} className="text-purple-400" />
+                                    <span className="font-bold">{item.unlockTime || "00:00"}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="max-w-4xl mx-auto p-12 space-y-8">
+                    <h1 className="text-4xl font-black text-gray-900 tracking-tight">{item.title}</h1>
+                    <div className="p-8 bg-gray-50 rounded-[2.5rem] border border-gray-100">
+                        <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 italic">About this {item.type.replace(/[-_]/g, ' ')}</h4>
+                        <p className="text-gray-600 text-lg leading-relaxed font-medium">
+                            {item.summary || item.description || `This ${item.type.replace(/[-_]/g, ' ')} is currently locked and will be available once the timer runs out.`}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     const renderContent = () => {
         if (!selectedItem) return null;
+
+        if (isItemLocked(selectedItem)) {
+            return renderLockedView(selectedItem);
+        }
 
         switch (selectedItem.type) {
             case 'live-class':
@@ -398,6 +502,7 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
                     onComplete={(score, passed) => {
                         if (passed) toggleComplete(selectedItem.id, false);
                     }}
+                    onStatusChange={setIsQuizActive}
                 />;
             case 'assignment':
                 return <StudentAssignmentView
@@ -422,9 +527,18 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
                                 <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mb-1">Learning Portal</span>
                                 <h2 className="font-black text-gray-900 text-xl tracking-tight">Curriculum</h2>
                             </div>
-                            <Link href={exitHref || `/student/courses/${course.id}`} className="w-10 h-10 rounded-2xl bg-gray-50 hover:bg-rose-50 text-gray-400 hover:text-rose-500 flex items-center justify-center transition-all group">
+                            <button 
+                                onClick={(e) => {
+                                    if (isQuizActive) {
+                                        showToast("You cannot leave while the quiz is active.", "warning");
+                                    } else {
+                                        router.push(exitHref || `/student/courses/${course.id}`);
+                                    }
+                                }}
+                                className="w-10 h-10 rounded-2xl bg-gray-50 hover:bg-rose-50 text-gray-400 hover:text-rose-500 flex items-center justify-center transition-all group"
+                            >
                                 <XIcon size={20} className="group-hover:rotate-90 transition-transform duration-300" />
-                            </Link>
+                            </button>
                         </div>
                         <div className="relative group">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
@@ -444,15 +558,28 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
                                 </button>
                                 {expandedModules.has(module.id) && (
                                     <div className="pl-4 space-y-2 border-l border-gray-100 ml-5 pt-2">
-                                        {module.items?.filter((i: any) => i.title.toLowerCase().includes(searchTerm.toLowerCase())).map((item: any) => (
-                                            <button key={item.id} onClick={() => setSelectedItem(item)} className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all ${selectedItem?.id === item.id ? 'bg-primary text-white shadow-xl' : 'hover:bg-white text-gray-600'}`}>
-                                                <div className="flex items-center gap-3 min-w-0">
-                                                    {getItemIcon(item.type)}
-                                                    <span className="text-xs font-black truncate">{item.title}</span>
-                                                </div>
-                                                {completedItems.has(item.id) && <CheckCircle2 size={16} className="text-emerald-500" />}
-                                            </button>
-                                        ))}
+                                        {module.items?.filter((i: any) => i.title.toLowerCase().includes(searchTerm.toLowerCase())).map((item: any) => {
+                                            const locked = isItemLocked(item);
+                                            return (
+                                                <button 
+                                                    key={item.id} 
+                                                    onClick={() => {
+                                                        if (isQuizActive) {
+                                                            showToast("You cannot leave the quiz until you submit or the timer runs out.", "warning");
+                                                            return;
+                                                        }
+                                                        setSelectedItem(item);
+                                                    }} 
+                                                    className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all ${selectedItem?.id === item.id ? 'bg-primary text-white shadow-xl' : 'hover:bg-white text-gray-600'}`}
+                                                >
+                                                    <div className="flex items-center gap-3 min-w-0">
+                                                        {getItemIcon(item.type, locked)}
+                                                        <span className="text-xs font-black truncate">{item.title}</span>
+                                                    </div>
+                                                    {completedItems.has(item.id) && !locked && <CheckCircle2 size={16} className="text-emerald-500" />}
+                                                </button>
+                                            )
+                                        })}
                                     </div>
                                 )}
                             </div>

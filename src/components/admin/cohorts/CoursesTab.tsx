@@ -13,9 +13,18 @@ interface CoursesTabProps {
     cohortName?: string;
     initialCourses?: any[];
     isReadOnly?: boolean;
+    showStudentCount?: boolean;
+    showViewDetails?: boolean;
 }
 
-export default function CoursesTab({ cohortId, cohortName = "this Cohort", initialCourses = [], isReadOnly = false }: CoursesTabProps) {
+export default function CoursesTab({
+    cohortId,
+    cohortName = "this Cohort",
+    initialCourses = [],
+    isReadOnly = false,
+    showStudentCount = true,
+    showViewDetails = true
+}: CoursesTabProps) {
     const router = useRouter();
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -195,13 +204,17 @@ export default function CoursesTab({ cohortId, cohortName = "this Cohort", initi
                                         </div>
                                         <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
                                             <p>Tutor: {course.instructor || course.tutor || 'Unassigned'}</p>
-                                            <div className="w-1 h-1 bg-gray-300 rounded-full"></div>
-                                            <p className="flex items-center gap-1.5 text-purple-600 font-medium">
-                                                <Users size={14} />
-                                                {course.student_count || 0} Students
-                                            </p>
+                                            {showStudentCount && (
+                                                <>
+                                                    <div className="w-1 h-1 bg-gray-300 rounded-full"></div>
+                                                    <p className="flex items-center gap-1.5 text-purple-600 font-medium">
+                                                        <Users size={14} />
+                                                        {course.student_count || 0} Students
+                                                    </p>
+                                                </>
+                                            )}
                                         </div>
-                                        {isReadOnly && !isLocked && (
+                                        {isReadOnly && !isLocked && showViewDetails && (
                                             <Link
                                                 href={`/student/courses/${course.id || course._id}?cohortId=${cohortId}`}
                                                 className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:text-purple-700 mt-3 group"

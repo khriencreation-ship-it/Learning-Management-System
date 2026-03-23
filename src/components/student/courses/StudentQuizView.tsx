@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { CheckSquare, ArrowRight, ArrowLeft, RefreshCw, CheckCircle2, XCircle, HelpCircle, Clock, RotateCcw, Lock } from 'lucide-react';
+import { CheckSquare, ArrowRight, ArrowLeft, RefreshCw, CheckCircle2, XCircle, HelpCircle, Clock, RotateCcw, Lock, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { createPortal } from 'react-dom';
 
@@ -11,6 +11,7 @@ interface StudentQuizViewProps {
     courseId: string;
     cohortId?: string | null;
     onComplete: (score: number, passed: boolean) => void;
+    onStatusChange?: (isActive: boolean) => void;
 }
 
 const formatTime = (seconds: number) => {
@@ -112,7 +113,26 @@ const ResultModal = ({ isOpen, result, onRetry, onClose }: any) => {
     );
 };
 
-export default function StudentQuizView({ quiz, courseId, cohortId, onComplete }: StudentQuizViewProps) {
+const isItemLocked = (item: any) => {
+    // Check both spread metadata and nested metadata object for robustness
+    const hasUnlockDate = item.hasUnlockDate ?? item.metadata?.hasUnlockDate;
+    const unlockDate = item.unlockDate ?? item.metadata?.unlockDate;
+    const unlockTime = item.unlockTime ?? item.metadata?.unlockTime;
+
+    if (!hasUnlockDate || !unlockDate) return false;
+    
+    try {
+        const timeStr = unlockTime || "00:00";
+        const unlockDateTime = new Date(`${unlockDate}T${timeStr}:00`);
+        if (isNaN(unlockDateTime.getTime())) return false;
+        
+        return unlockDateTime.getTime() > new Date().getTime();
+    } catch (e) {
+        return false;
+    }
+};
+
+export default function StudentQuizView({ quiz, courseId, cohortId, onComplete, onStatusChange }: StudentQuizViewProps) {
     const [answers, setAnswers] = useState<{ [key: number]: string | number }>({});
     const [submitting, setSubmitting] = useState(false);
     const [result, setResult] = useState<any>(null); // This is the payload from API
@@ -177,6 +197,30 @@ export default function StudentQuizView({ quiz, courseId, cohortId, onComplete }
         }, 1000);
         return () => clearInterval(timer);
     }, [timeLeft, result]);
+
+    // Navigation Protection
+    useEffect(() => {
+        const isQuizActive = started && !result;
+        
+        // Notify parent
+        if (onStatusChange) {
+            onStatusChange(isQuizActive);
+        }
+
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (isQuizActive) {
+                e.preventDefault();
+                e.returnValue = ''; // Required for most browsers
+                return '';
+            }
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            if (onStatusChange) onStatusChange(false);
+        };
+    }, [started, result, onStatusChange]);
 
     useEffect(() => {
         if (timeLeft === 0 && !result && !submitting && started) {
@@ -263,6 +307,20 @@ export default function StudentQuizView({ quiz, courseId, cohortId, onComplete }
 
     if (loading) return <div className="p-12 text-center text-gray-400">Loading quiz data...</div>;
 
+    if (isItemLocked(quiz)) {
+        return (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 bg-gray-50 text-center h-full">
+                <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-400 mb-6 shadow-inner">
+                    <Lock size={32} />
+                </div>
+                <h2 className="text-2xl font-black text-gray-900 mb-2 tracking-tight">Quiz Locked</h2>
+                <p className="text-gray-500 font-medium max-w-sm mx-auto leading-relaxed">
+                    This quiz is not yet available. It will unlock on {new Date(quiz.unlockDate || quiz.metadata?.unlockDate).toLocaleDateString()}.
+                </p>
+            </div>
+        );
+    }
+
     const showAnswers = shouldShowReview();
     const isGameActive = started && !result; // User is currently taking it
     const isReviewMode = !!result && showAnswers; // User is reviewing
@@ -288,7 +346,7 @@ export default function StudentQuizView({ quiz, courseId, cohortId, onComplete }
                             </p>
                         </div>
 
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                             <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">Status</span>
                                 <span className={`text-lg font-black ${stats?.passed ? 'text-emerald-600' : 'text-gray-900'}`}>{stats?.passed ? 'Passed' : 'Pending'}</span>
@@ -304,6 +362,14 @@ export default function StudentQuizView({ quiz, courseId, cohortId, onComplete }
                             <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">Time Limit</span>
                                 <span className="text-lg font-black text-gray-900">{timeLimitMins ? `${timeLimitMins}m` : '∞'}</span>
+                            </div>
+                            <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">Deadline</span>
+                                <span className="text-lg font-black text-gray-900">
+                                    {(quiz.metadata?.hasCloseDate && quiz.metadata?.closeDate) 
+                                        ? `${new Date(quiz.metadata.closeDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${quiz.metadata.closeTime || ''}`
+                                        : 'No Close'}
+                                </span>
                             </div>
                         </div>
 
@@ -364,12 +430,25 @@ export default function StudentQuizView({ quiz, courseId, cohortId, onComplete }
                         {isLockedMode && <span className="bg-rose-100 text-rose-700 px-3 py-1 rounded-lg text-xs font-bold uppercase">Results Hidden</span>}
                     </div>
                     {isGameActive && timeLeft !== null && (
-                        <div className={`flex items-center gap-2 px-4 py-2 rounded-xl font-mono font-bold transition-colors ${timeLeft < 60 ? 'bg-rose-50 text-rose-600 animate-pulse' : 'bg-gray-100 text-gray-700'}`}>
-                            <Clock size={16} />
-                            {formatTime(timeLeft)}
+                        <div className="flex items-center gap-4">
+                            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg border border-amber-200 text-[10px] font-bold uppercase tracking-wider animate-pulse">
+                                <AlertCircle size={14} />
+                                Warning: Do not reload or leave
+                            </div>
+                            <div className={`flex items-center gap-2 px-4 py-2 rounded-xl font-mono font-bold transition-colors ${timeLeft < 60 ? 'bg-rose-50 text-rose-600 animate-pulse' : 'bg-gray-100 text-gray-700'}`}>
+                                <Clock size={16} />
+                                {formatTime(timeLeft)}
+                            </div>
                         </div>
                     )}
                 </div>
+
+                {isGameActive && (
+                    <div className="bg-amber-50 px-6 py-2 border-b border-amber-100 flex items-center justify-center gap-2 text-[10px] font-bold text-amber-800 uppercase tracking-widest">
+                        <AlertCircle size={12} />
+                        Leaving or reloading this page will submit your quiz. Unanswered questions will be marked as wrong.
+                    </div>
+                )}
 
                 <div className="flex-1 overflow-y-auto p-6 md:p-10">
                     <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in duration-300">

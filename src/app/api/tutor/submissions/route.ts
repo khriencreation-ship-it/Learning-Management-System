@@ -9,7 +9,9 @@ export async function GET(req: NextRequest) {
         const courseId = searchParams.get('courseId');
         const cohortId = searchParams.get('cohortId');
 
-        if (!itemId && !courseId && !cohortId) { // Adjusted condition to include cohortId
+        console.log('Fetching submissions for:', { itemId, courseId, cohortId });
+
+        if (!itemId && !courseId && !cohortId) {
             return NextResponse.json({ error: 'Missing itemId, courseId, or cohortId' }, { status: 400 });
         }
 
@@ -17,7 +19,7 @@ export async function GET(req: NextRequest) {
             .from('assignment_submissions')
             .select(`
                 *,
-                student:student_id (
+                student:profiles (
                     id,
                     full_name,
                     identifier,
@@ -27,11 +29,21 @@ export async function GET(req: NextRequest) {
 
         if (itemId) query = query.eq('item_id', itemId);
         if (courseId) query = query.eq('course_id', courseId);
-        if (cohortId && cohortId !== 'all') query = query.eq('cohort_id', cohortId);
+        if (cohortId && cohortId !== 'null' && cohortId !== 'undefined') {
+            // Include submissions for the specific cohort OR those that are global (null)
+            query = query.or(`cohort_id.eq.${cohortId},cohort_id.is.null`);
+        } else {
+            query = query.is('cohort_id', null);
+        }
 
         const { data, error } = await query.order('created_at', { ascending: false });
 
-        if (error) throw error;
+        console.log('Submissions query result:', { count: data?.length, error });
+
+        if (error) {
+            console.error('Supabase query error:', error);
+            throw error;
+        }
 
         return NextResponse.json(data);
     } catch (error: any) {

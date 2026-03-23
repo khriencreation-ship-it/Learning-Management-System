@@ -1,18 +1,21 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/tutor/DashboardLayout';
 import StatCard from '@/components/admin/StatCard';
 import RecentList from '@/components/admin/RecentList';
 import TutorWelcome from '@/components/tutor/TutorWelcome';
 import RecentBroadcasts from '@/components/common/RecentBroadcasts';
 import NotificationDropdown from '@/components/common/NotificationDropdown';
-import LoadingScreen from '@/components/common/LoadingScreen';
+import AnnouncementModal from '@/components/admin/modals/AnnouncementModal';
 import { LayoutGrid, BookOpen } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 export default function TutorDashboardClient() {
+    const router = useRouter();
     const [loading, setLoading] = useState(true);
+    const [selectedBroadcast, setSelectedBroadcast] = useState<any | null>(null);
     const [data, setData] = useState<{
         totalCohorts: number;
         totalCourses: number;
@@ -85,6 +88,17 @@ export default function TutorDashboardClient() {
         secondaryText: item.code
     }));
 
+    const handleBroadcastSelect = (broadcast: any) => {
+        const dateObj = new Date(broadcast.created_at);
+        setSelectedBroadcast({
+            ...broadcast,
+            sender: broadcast.sender_role === 'admin' ? 'Platform Admin' : 'Course Tutor',
+            role: broadcast.sender_role === 'admin' ? 'Admin' : 'Tutor',
+            date: dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            time: dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+        });
+    };
+
     return (
         <DashboardLayout isLoading={loading}>
             <div className="max-w-6xl mx-auto">
@@ -98,6 +112,12 @@ export default function TutorDashboardClient() {
 
                     <NotificationDropdown />
                 </div>
+
+                <AnnouncementModal
+                    isOpen={!!selectedBroadcast}
+                    onClose={() => setSelectedBroadcast(null)}
+                    announcement={selectedBroadcast}
+                />
 
                 {/* Stats Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
@@ -141,8 +161,12 @@ export default function TutorDashboardClient() {
 
                     {/* Right Column for Broadcasts */}
                     <div className="space-y-6">
-                        <div className="h-full max-h-[724px]">
-                            <RecentBroadcasts broadcasts={data.recentBroadcasts} />
+                        <div className="h-full min-h-[724px]">
+                            <RecentBroadcasts 
+                                broadcasts={data.recentBroadcasts} 
+                                onViewAll={() => router.push('/tutor/broadcast')}
+                                onSelect={handleBroadcastSelect}
+                            />
                         </div>
                     </div>
                 </div>

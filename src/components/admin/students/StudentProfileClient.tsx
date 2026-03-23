@@ -13,8 +13,9 @@ import Toast from '@/components/ui/Toast';
 interface CurriculumItem {
     id: string;
     title: string;
-    type: 'lesson' | 'quiz' | 'assignment' | 'live-class';
+    type: string;
     isCompleted: boolean;
+    metadata?: any;
 }
 
 interface CurriculumModule {
@@ -57,6 +58,24 @@ interface StudentProfile {
 interface StudentProfileClientProps {
     student: StudentProfile;
 }
+
+// Helper to check if a deadline has passed
+const isDeadlinePassed = (item: any) => {
+    const hasCloseDate = item.metadata?.hasCloseDate;
+    const closeDate = item.metadata?.closeDate;
+    const closeTime = item.metadata?.closeTime;
+
+    if (!hasCloseDate || !closeDate) return false;
+
+    try {
+        const timeStr = closeTime || "23:59";
+        const deadline = new Date(`${closeDate}T${timeStr}:00`);
+        if (isNaN(deadline.getTime())) return false;
+        return deadline.getTime() < new Date().getTime();
+    } catch (e) {
+        return false;
+    }
+};
 
 export default function StudentProfileClient({ student }: StudentProfileClientProps) {
     const [activeTab, setActiveTab] = useState<'courses' | 'cohorts'>('courses');
@@ -110,6 +129,13 @@ export default function StudentProfileClient({ student }: StudentProfileClientPr
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-600 border border-blue-100">
                         <AlertCircle size={12} />
                         Partial
+                    </span>
+                );
+            case 'scholarship':
+                return (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-600 border border-purple-100">
+                        <CheckCircle2 size={12} />
+                        Scholarship
                     </span>
                 );
             default:
@@ -466,11 +492,11 @@ export default function StudentProfileClient({ student }: StudentProfileClientPr
                                                     className="flex items-center justify-between p-3 rounded-xl border border-transparent hover:border-gray-100 hover:bg-gray-50/50 transition-all group"
                                                 >
                                                     <div className="flex items-center gap-3">
-                                                        <div className={item.isCompleted ? 'text-emerald-500' : 'text-gray-300'}>
-                                                            {item.isCompleted ? <CheckCircle size={18} /> : <Circle size={18} />}
+                                                        <div className={item.isCompleted ? 'text-emerald-500' : isDeadlinePassed(item) ? 'text-red-500' : 'text-gray-300'}>
+                                                            {item.isCompleted ? <CheckCircle size={18} /> : isDeadlinePassed(item) ? <XCircle size={18} /> : <Circle size={18} />}
                                                         </div>
                                                         <div>
-                                                            <p className={`text-sm font-semibold transition-colors ${item.isCompleted ? 'text-gray-900' : 'text-gray-500'}`}>
+                                                            <p className={`text-sm font-semibold transition-colors ${item.isCompleted ? 'text-gray-900' : isDeadlinePassed(item) ? 'text-red-900' : 'text-gray-500'}`}>
                                                                 {item.title}
                                                             </p>
                                                             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
@@ -478,11 +504,15 @@ export default function StudentProfileClient({ student }: StudentProfileClientPr
                                                             </span>
                                                         </div>
                                                     </div>
-                                                    {item.isCompleted && (
+                                                    {item.isCompleted ? (
                                                         <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full uppercase tracking-tighter">
                                                             Done
                                                         </span>
-                                                    )}
+                                                    ) : isDeadlinePassed(item) ? (
+                                                        <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full uppercase tracking-tighter">
+                                                            Missed
+                                                        </span>
+                                                    ) : null}
                                                 </div>
                                             ))}
                                         </div>

@@ -76,8 +76,8 @@ export async function generateGoogleMeetLink(
         if (error.message?.includes('No tokens found')) {
             throw new Error('Please connect your Google account first');
         }
-        if (error.message?.includes('invalid_grant')) {
-            throw new Error('Your Google authorization has expired. Please reconnect your account');
+        if (error.message?.includes('invalid_grant') || error.message?.includes('insufficient authentication scopes')) {
+            throw new Error('Your Google authorization has expired or needs updated permissions. Please reconnect your account in Settings > Integrations.');
         }
 
         throw new Error(`Failed to generate Google Meet link: ${error.message}`);

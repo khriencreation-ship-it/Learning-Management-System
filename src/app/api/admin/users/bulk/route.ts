@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { sendWelcomeEmail } from '@/lib/mail';
 
 export async function POST(request: Request) {
     try {
@@ -97,6 +98,15 @@ export async function POST(request: Request) {
                     // Log but don't fail the whole batch, user is created
                     console.error(`Profile update failed for ${email}:`, profileError);
                 }
+
+                // 6. Send Welcome Email (async)
+                sendWelcomeEmail({
+                    email,
+                    name,
+                    identifier,
+                    password,
+                    role
+                }).catch(err => console.error('Failed to send bulk welcome email for:', email, err));
 
                 stats.success++;
 

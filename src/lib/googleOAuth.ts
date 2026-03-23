@@ -22,6 +22,7 @@ export function generateAuthUrl(userId: string, courseId?: string): string {
     const oauth2Client = getOAuth2Client();
 
     const scopes = [
+        'https://www.googleapis.com/auth/calendar',
         'https://www.googleapis.com/auth/calendar.events',
         'https://www.googleapis.com/auth/userinfo.email',
     ];

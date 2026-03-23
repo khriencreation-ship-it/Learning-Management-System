@@ -35,16 +35,22 @@ async function getCourse(id: string) {
                     .sort((a: any, b: any) => a.order_index - b.order_index)
                     .map((item: any) => {
                         // Normalize metadata
-                        const meta = item.metadata || {};
+                        let meta = item.metadata || {};
+                        if (typeof meta === 'string') {
+                            try { meta = JSON.parse(meta); } catch (e) { meta = {}; }
+                        }
+                        
                         return {
                             ...item,
                             ...meta,
+                            metadata: meta, // Keep it for defensive checks
                             title: item.title,
                             summary: item.summary
                         };
                     })
             }));
 
+        console.log("SERVER PASSING TO CLIENT:", JSON.stringify(sortedModules, null, 2));
         return {
             ...courseData,
             curriculum: sortedModules
@@ -54,6 +60,23 @@ async function getCourse(id: string) {
         return null;
     }
 }
+
+const isItemLocked = (item: any) => {
+    const hasUnlockDate = item.hasUnlockDate ?? item.metadata?.hasUnlockDate;
+    const unlockDate = item.unlockDate ?? item.metadata?.unlockDate;
+    const unlockTime = item.unlockTime ?? item.metadata?.unlockTime;
+
+    if (!hasUnlockDate || !unlockDate) return false;
+    
+    try {
+        const timeStr = unlockTime || "00:00";
+        const unlockDateTime = new Date(`${unlockDate}T${timeStr}:00`);
+        if (isNaN(unlockDateTime.getTime())) return false;
+        return unlockDateTime.getTime() > new Date().getTime();
+    } catch (e) {
+        return false;
+    }
+};
 
 export default async function Page(props: any) {
     const params = await props.params;
@@ -65,6 +88,10 @@ export default async function Page(props: any) {
 
     if (!course) {
         notFound();
+    }
+
+    if (searchParams.debug === '1') {
+        return <pre>{JSON.stringify(course, null, 2)}</pre>;
     }
 
     return (

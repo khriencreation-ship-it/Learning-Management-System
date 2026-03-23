@@ -18,6 +18,7 @@ interface CourseCardProps {
     linkPrefix?: string;
     isLocked?: boolean;
     cohortNames?: string[];
+    cohortId?: string | null;
 }
 
 export default function CourseCard({
@@ -36,7 +37,8 @@ export default function CourseCard({
     cohortsCount = 0,
     linkPrefix = '/admin/courses',
     isLocked = false,
-    cohortNames = []
+    cohortNames = [],
+    cohortId = null
 }: CourseCardProps & { code?: string }) {
     const statusConfig: any = {
         active: { bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-500' },
@@ -179,7 +181,7 @@ export default function CourseCard({
 
     return (
         <Link
-            href={`${linkPrefix}/${id}`}
+            href={`${linkPrefix}/${id}${cohortId ? `?cohortId=${cohortId}` : ''}`}
             className="group block h-full translate-y-0 hover:-translate-y-1 transition-all duration-300"
         >
             {CardContent}

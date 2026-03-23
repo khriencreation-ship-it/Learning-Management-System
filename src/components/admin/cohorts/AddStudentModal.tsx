@@ -54,6 +54,23 @@ export default function AddStudentModal({ isOpen, onClose, onAdd, existingStuden
         }
     };
 
+    const handleSelectAll = () => {
+        const eligibleStudents = filteredStudents.filter(student => !existingStudentIds.includes(student.id));
+        const eligibleIds = eligibleStudents.map(student => student.id);
+        
+        // If all eligible are already selected, maybe toggle off? 
+        // User asked for "Select All", so let's just ensure they are all in.
+        const allSelected = eligibleIds.every(id => selectedStudents.includes(id));
+        
+        if (allSelected) {
+            // If all currently filtered and eligible are already selected, deselect them
+            setSelectedStudents(prev => prev.filter(id => !eligibleIds.includes(id)));
+        } else {
+            // Otherwise select all eligible
+            setSelectedStudents(prev => Array.from(new Set([...prev, ...eligibleIds])));
+        }
+    }
+
     const handleAdd = () => {
         if (onAdd) {
             onAdd(selectedStudents);
@@ -93,6 +110,21 @@ export default function AddStudentModal({ isOpen, onClose, onAdd, existingStuden
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                     />
+                </div>
+
+                {/* Actions */}
+                <div className="flex justify-between items-center mb-4 px-1">
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Results ({filteredStudents.length})
+                    </span>
+                    <button
+                        onClick={handleSelectAll}
+                        className="text-xs font-bold text-primary hover:text-purple-700 transition-colors bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg"
+                    >
+                        {filteredStudents.length > 0 && filteredStudents.filter(s => !existingStudentIds.includes(s.id)).every(s => selectedStudents.includes(s.id))
+                            ? 'Deselect All'
+                            : 'Select All'}
+                    </button>
                 </div>
 
                 {/* List */}

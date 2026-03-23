@@ -167,6 +167,7 @@ export default function StudentCoursesClient() {
                                 linkPrefix="/student/courses"
                                 isLocked={course.isLocked}
                                 cohortNames={course.cohortNames}
+                                cohortId={course.cohortId}
                             />
                         ))
                     ) : (

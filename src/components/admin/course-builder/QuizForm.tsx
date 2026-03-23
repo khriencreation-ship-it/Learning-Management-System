@@ -1,7 +1,9 @@
 "use client";
 
-import { Plus, X, Trash2, Check, Lock, Calendar, Clock, AlertCircle } from 'lucide-react';
-import { useState } from 'react';
+import { Plus, X, Trash2, Check, Lock, Calendar, Clock, AlertCircle, Upload, FileText } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { useToast } from '@/hooks/useToast';
+import * as XLSX from 'xlsx';
 
 interface QuizFormProps {
     onSave: (quizData: any) => void;
@@ -21,6 +23,8 @@ interface Question {
 
 export default function QuizForm({ onSave, onCancel, initialData, isEditing = false }: QuizFormProps) {
     const [step, setStep] = useState<'info' | 'questions' | 'settings'>(initialData ? 'questions' : 'info');
+    const { showToast } = useToast();
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Quiz Info
     const [quizTitle, setQuizTitle] = useState(initialData?.title || '');
@@ -109,6 +113,110 @@ export default function QuizForm({ onSave, onCancel, initialData, isEditing = fa
             options: question.options || ['', '', '', '']
         });
         setEditingQuestionId(question.id);
+    };
+
+    const handleTemplateDownload = () => {
+        const headers = "Type,Question,Description,Option A,Option B,Option C,Option D,Correct Answer";
+        const examples = [
+            'MC,"What is React?","A JavaScript library for building user interfaces.",A library,A framework,A language,A database,A',
+            'TF,"Is React a framework?","React is often called a library.", , , , ,False'
+        ];
+        const csvContent = headers + "\n" + examples.join("\n");
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", "quiz_template.csv");
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const data = new Uint8Array(event.target?.result as ArrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                
+                // Using header: 1 to get an array of arrays (rows)
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+
+                if (!jsonData || jsonData.length <= 1) {
+                    showToast("File is empty or missing data lines.", "error");
+                    return;
+                }
+
+                const parsedQuestions: Question[] = [];
+                // Skip header at index 0
+                for (let i = 1; i < jsonData.length; i++) {
+                    const row = jsonData[i];
+                    if (!row || row.length < 2) continue;
+
+                    const typeRaw = String(row[0] || '').trim().toUpperCase();
+                    const type = typeRaw === 'TF' ? 'true-false' : 'multiple-choice';
+                    const question = String(row[1] || '').trim();
+                    const description = String(row[2] || '').trim();
+                    
+                    if (!question) continue;
+
+                    let correctAnswer = '';
+                    let options: string[] | undefined = undefined;
+
+                    if (type === 'true-false') {
+                        const ans = String(row[7] || '').trim().toLowerCase();
+                        correctAnswer = (ans === 'true' || ans === 't') ? 'true' : 'false';
+                    } else {
+                        options = [
+                            String(row[3] || '').trim(),
+                            String(row[4] || '').trim(),
+                            String(row[5] || '').trim(),
+                            String(row[6] || '').trim()
+                        ];
+                        const ans = String(row[7] || '').trim().toUpperCase();
+                        const mcMap: Record<string, string> = { 'A': '0', 'B': '1', 'C': '2', 'D': '3', '0': '0', '1': '1', '2': '2', '3': '3' };
+                        correctAnswer = mcMap[ans] || '0';
+                    }
+
+                    parsedQuestions.push({
+                        id: Date.now() + i,
+                        type,
+                        question,
+                        description,
+                        correctAnswer,
+                        options
+                    });
+
+                    if (parsedQuestions.length >= 10) break;
+                }
+
+                if (parsedQuestions.length > 0) {
+                    setQuestions(prev => {
+                        const combined = [...prev, ...parsedQuestions];
+                        if (combined.length > 10) {
+                            showToast(`Imported ${10 - prev.length} ques. Total limited to 10.`, "warning");
+                            return combined.slice(0, 10);
+                        }
+                        showToast(`Successfully added ${parsedQuestions.length} questions.`, "success");
+                        return combined;
+                    });
+                } else {
+                    showToast("No valid questions found in file.", "error");
+                }
+            } catch (error) {
+                console.error("Error parsing file:", error);
+                showToast("Failed to parse the file. Please check the format.", "error");
+            } finally {
+                if (fileInputRef.current) fileInputRef.current.value = "";
+            }
+        };
+        reader.readAsArrayBuffer(file);
     };
 
     const handleOptionChange = (index: number, value: string) => {
@@ -211,8 +319,34 @@ export default function QuizForm({ onSave, onCancel, initialData, isEditing = fa
                             </p>
                             <p className="text-xs text-gray-500">Each question is worth 2 marks</p>
                         </div>
-                        <div className="text-sm font-bold text-green-700">
-                            Total: {totalMarks} marks
+                        <div className="flex items-center gap-3">
+                            <div className="text-sm font-bold text-green-700 mr-2">
+                                Total: {totalMarks} marks
+                            </div>
+                            <button
+                                type="button"
+                                onClick={handleTemplateDownload}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 font-semibold text-xs transition-colors"
+                                title="Download sample CSV template"
+                            >
+                                <FileText size={14} />
+                                Template
+                            </button>
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleImportCSV}
+                                accept=".csv"
+                                className="hidden"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold text-xs transition-colors"
+                            >
+                                <Upload size={14} />
+                                Import CSV
+                            </button>
                         </div>
                     </div>
 

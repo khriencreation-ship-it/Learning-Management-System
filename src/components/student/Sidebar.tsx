@@ -48,6 +48,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 {/* Actually, user said 'exact same thing' minus broadcast. Let's see tutor's items: Home, Cohort, Courses, Broadcast. */}
                 <NavItem icon={<LayoutGrid size={22} />} label="Cohorts" href="/student/cohorts" active={pathname.startsWith('/student/cohorts')} onClick={handleClose} />
                 <NavItem icon={<BookOpen size={22} />} label="Courses" href="/student/courses" active={pathname.startsWith('/student/courses')} onClick={handleClose} />
+                <NavItem icon={<Users size={22} />} label="Broadcasts" href="/student/broadcasts" active={pathname.startsWith('/student/broadcasts')} onClick={handleClose} />
             </nav>
 
             {/* Logout Button */}

@@ -16,17 +16,57 @@ export async function GET(req: NextRequest) {
 
         const tutorId = user.id;
 
-        // Fetch broadcasts sent by this tutor
-        const { data, error } = await supabaseAdmin
+        // 1. Fetch Tutors' Cohorts
+        const { data: cohortTutors } = await supabaseAdmin
+            .from('cohort_tutors')
+            .select('cohort_id')
+            .eq('tutor_id', tutorId);
+        
+        const myCohortIds = cohortTutors?.map(ct => ct.cohort_id) || [];
+
+        // 2. Fetch Tutors' Courses
+        // Direct assignment
+        const { data: ctData } = await supabaseAdmin
+            .from('course_tutors')
+            .select('course_id')
+            .eq('tutor_id', tutorId);
+        
+        const myCourseIds = new Set(ctData?.map(item => item.course_id) || []);
+
+        // Name match assignment (tutor full_name matches course instructor)
+        const { data: profile } = await supabaseAdmin.from('profiles').select('full_name').eq('id', tutorId).single();
+        if (profile?.full_name) {
+            const { data: instructorCourses } = await supabaseAdmin
+                .from('courses')
+                .select('id')
+                .eq('instructor', profile.full_name);
+            instructorCourses?.forEach(item => myCourseIds.add(item.id));
+        }
+
+        const courseIdsArray = Array.from(myCourseIds);
+
+        // 3. Fetch Broadcasts
+        // (Own broadcasts OR target cohort match OR target course match)
+        let query = supabaseAdmin
             .from('announcements')
             .select(`
                 *,
                 cohorts ( name ),
                 courses ( title )
             `)
-            .eq('sender_id', tutorId)
             .order('created_at', { ascending: false });
 
+        const conditions = [`sender_id.eq.${tutorId}`];
+        if (myCohortIds.length > 0) {
+            conditions.push(`cohort_id.in.(${myCohortIds.join(',')})`);
+        }
+        if (courseIdsArray.length > 0) {
+            conditions.push(`course_id.in.(${courseIdsArray.join(',')})`);
+        }
+
+        query = query.or(conditions.join(','));
+
+        const { data, error } = await query;
         if (error) throw error;
 
         const broadcasts = data.map((item: any) => ({
@@ -39,7 +79,7 @@ export async function GET(req: NextRequest) {
             created_at: item.created_at,
             cohort_name: item.cohorts?.name,
             course_title: item.courses?.title,
-            sender_role: 'tutor'
+            sender_role: item.sender_id === tutorId ? 'tutor' : 'admin'
         }));
 
         return NextResponse.json(broadcasts);

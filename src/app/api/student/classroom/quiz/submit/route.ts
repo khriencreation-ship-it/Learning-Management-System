@@ -112,22 +112,20 @@ export async function POST(req: NextRequest) {
             .single();
 
         if (saveError) throw saveError;
-
-        // 4. Update Progress if passed
-        if (passed) {
-            await supabaseAdmin
-                .from('student_progress')
-                .upsert({
-                    student_id: user.id,
-                    course_id: courseId,
-                    cohort_id: cohortId || null,
-                    item_id: quizId,
-                    is_completed: true,
-                    completed_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
-                }, { onConflict: 'student_id, item_id, cohort_id' });
-        }
-
+        
+        // 4. Update Progress for ANY attempt (Pass or Fail)
+        await supabaseAdmin
+            .from('student_progress')
+            .upsert({
+                student_id: user.id,
+                course_id: courseId,
+                cohort_id: cohortId || null,
+                item_id: quizId,
+                is_completed: true,
+                completed_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'student_id, item_id, cohort_id' });
+        
         // 5. Determine Result Visibility
         const retriesLeft = maxAttempts - currentAttemptNum;
         const hideResults = !passed && retriesLeft > 0;

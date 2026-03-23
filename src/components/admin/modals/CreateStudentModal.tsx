@@ -181,6 +181,7 @@ export default function CreateStudentModal({ isOpen, onClose, onSuccess, editStu
                             <option value="unpaid">Unpaid</option>
                             <option value="partial">Partial</option>
                             <option value="paid">Paid</option>
+                            <option value="scholarship">Scholarship</option>
                         </select>
                     </div>
 

@@ -34,29 +34,50 @@ export async function GET(req: NextRequest) {
         // 2. Fetch Courses
         const courseMap = new Map();
 
-        // 2. Fetch ALL Enrollments (Direct OR via Cohort)
-        const { data: allEnrollments } = await supabaseAdmin
+        // 2. Fetch COURSES (Direct enrollments)
+        const { data: directEnrollments } = await supabaseAdmin
             .from('course_enrollments')
             .select('course_id, cohort_id')
             .eq('student_id', studentId);
 
         const enrollmentsByCourse = new Map<string, any[]>();
-        const allCohortIds = new Set<string>();
         const enrolledCourseIds = new Set<string>();
 
-        allEnrollments?.forEach((e: any) => {
+        directEnrollments?.forEach((e: any) => {
             if (!enrollmentsByCourse.has(e.course_id)) {
                 enrollmentsByCourse.set(e.course_id, []);
                 enrolledCourseIds.add(e.course_id);
             }
             enrollmentsByCourse.get(e.course_id)?.push(e);
-
-            if (e.cohort_id) {
-                allCohortIds.add(e.cohort_id);
-            }
         });
 
-        // 2a. Fetch Course Details
+        // 2b. Fetch courses linked to student's cohorts
+        if (cohortIds.length > 0) {
+            const { data: cohortCourses } = await supabaseAdmin
+                .from('course_cohorts')
+                .select('cohort_id, course_id, settings')
+                .in('cohort_id', cohortIds);
+
+            cohortCourses?.forEach((cc: any) => {
+                if (!enrolledCourseIds.has(cc.course_id)) {
+                    enrolledCourseIds.add(cc.course_id);
+                }
+                if (!enrollmentsByCourse.has(cc.course_id)) {
+                    enrollmentsByCourse.set(cc.course_id, []);
+                }
+                // Add a virtual enrollment if not already present
+                const exists = enrollmentsByCourse.get(cc.course_id)?.some(e => e.cohort_id === cc.cohort_id);
+                if (!exists) {
+                    enrollmentsByCourse.get(cc.course_id)?.push({
+                        course_id: cc.course_id,
+                        cohort_id: cc.cohort_id,
+                        is_virtual: true
+                    });
+                }
+            });
+        }
+
+        // 2c. Fetch Course Details
         if (enrolledCourseIds.size > 0) {
             const { data: enrollmentDetails } = await supabaseAdmin
                 .from('courses')
@@ -68,19 +89,20 @@ export async function GET(req: NextRequest) {
             });
         }
 
-        // 3. Fetch Settings and Calculate Effective Lock
+        // 3. Fetch Settings for Lock Calculation
         const settingsMap = new Map<string, boolean>();
+        const allRelevantCohortIds = cohorts.map((c: any) => c.id);
 
-        if (allCohortIds.size > 0 && enrolledCourseIds.size > 0) {
-            const { data: cohortCourses } = await supabaseAdmin
+        if (allRelevantCohortIds.length > 0 && enrolledCourseIds.size > 0) {
+            const { data: lockSettings } = await supabaseAdmin
                 .from('course_cohorts')
                 .select('cohort_id, course_id, settings')
-                .in('cohort_id', Array.from(allCohortIds))
+                .in('cohort_id', allRelevantCohortIds)
                 .in('course_id', Array.from(enrolledCourseIds));
 
-            cohortCourses?.forEach((cs: any) => {
-                const key = `${cs.cohort_id}-${cs.course_id}`;
-                settingsMap.set(key, cs.settings?.isLocked || false);
+            lockSettings?.forEach((ls: any) => {
+                const key = `${ls.cohort_id}-${ls.course_id}`;
+                settingsMap.set(key, ls.settings?.isLocked || false);
             });
         }
 

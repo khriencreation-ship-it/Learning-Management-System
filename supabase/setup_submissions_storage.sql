@@ -1,7 +1,16 @@
 -- Create 'submissions' bucket if not exists
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('submissions', 'submissions', true)
-ON CONFLICT (id) DO NOTHING;
+-- We update it to ensure allowed_mime_types includes PDFs and Docs
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+    'submissions', 
+    'submissions', 
+    true, 
+    52428800, -- 50MB limit
+    '{application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document, application/msword, image/*, text/plain}'
+)
+ON CONFLICT (id) DO UPDATE SET 
+    allowed_mime_types = '{application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document, application/msword, image/*, text/plain}',
+    file_size_limit = 52428800;
 
 -- Policy: Allow authenticated users (Students) to upload files
 -- We use drop policy if exists to avoid errors on re-run

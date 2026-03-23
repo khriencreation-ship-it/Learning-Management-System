@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/admin/DashboardLayout';
-import { ArrowLeft, Play, BookOpen, FileText, CheckSquare, List, Plus, Clock, Users, Edit, Globe, Lock as LockIcon, Eye, EyeOff, Video, Layers, Trash2, AlertTriangle, Bell, MessageSquare, Send } from 'lucide-react';
+import { ArrowLeft, Play, BookOpen, FileText, CheckSquare, List, Plus, Clock, Users, Edit, Globe, Lock as LockIcon, Eye, EyeOff, Video, Layers, Trash2, AlertTriangle, Bell, MessageSquare, Send, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/useToast';
 import Toast from '@/components/ui/Toast';
@@ -12,9 +12,15 @@ import CurriculumModule from './CurriculumModule';
 
 interface CourseDetailsClientProps {
     course: any;
+    currentPage: number;
+    pageSize: number;
 }
 
-export default function CourseDetailsClient({ course: initialCourse }: CourseDetailsClientProps) {
+export default function CourseDetailsClient({ 
+    course: initialCourse,
+    currentPage,
+    pageSize
+}: CourseDetailsClientProps) {
     const router = useRouter();
     const [course, setCourse] = useState(initialCourse);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -41,6 +47,15 @@ export default function CourseDetailsClient({ course: initialCourse }: CourseDet
 
         fetchAnnouncements();
     }, []);
+
+    // Sync state with props when initialCourse changes (e.g., on page change)
+    useEffect(() => {
+        setCourse(initialCourse);
+    }, [initialCourse]);
+
+    const handlePageChange = (page: number) => {
+        router.push(`/admin/courses/${course.id}?page=${page}`);
+    };
 
     const fetchAnnouncements = async () => {
         try {
@@ -466,7 +481,7 @@ export default function CourseDetailsClient({ course: initialCourse }: CourseDet
                                     Enrolled Students
                                 </h3>
                                 <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold border border-emerald-100">
-                                    {course.course_enrollments?.length || 0} Total
+                                    {course.total_enrollments_count || 0} Total
                                 </span>
                             </div>
 
@@ -516,6 +531,53 @@ export default function CourseDetailsClient({ course: initialCourse }: CourseDet
                                         </tbody>
                                     </table>
                                 </div>
+                                {Math.ceil((course.total_enrollments_count || 0) / pageSize) > 1 && (
+                                    <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <p className="text-sm text-gray-500">
+                                                Page <span className="font-bold text-gray-900">{currentPage}</span> of <span className="font-bold text-gray-900">{Math.ceil((course.total_enrollments_count || 0) / pageSize)}</span>
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                onClick={() => handlePageChange(currentPage - 1)}
+                                                disabled={currentPage === 1}
+                                                className="p-2 text-gray-500 hover:text-gray-900 hover:bg-white rounded-lg transition-all disabled:opacity-30 disabled:hover:bg-transparent"
+                                            >
+                                                <ChevronLeft size={18} />
+                                            </button>
+                                            
+                                            {Array.from({ length: Math.ceil((course.total_enrollments_count || 0) / pageSize) }, (_, i) => i + 1)
+                                                .filter(p => p === 1 || p === Math.ceil((course.total_enrollments_count || 0) / pageSize) || Math.abs(p - currentPage) <= 1)
+                                                .map((p, i, arr) => (
+                                                    <div key={p} className="flex items-center">
+                                                        {i > 0 && arr[i - 1] !== p - 1 && (
+                                                            <span className="px-2 text-gray-400">...</span>
+                                                        )}
+                                                        <button
+                                                            onClick={() => handlePageChange(p)}
+                                                            className={`w-9 h-9 rounded-lg text-sm font-bold transition-all ${
+                                                                currentPage === p
+                                                                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200'
+                                                                    : 'text-gray-500 hover:text-gray-900 hover:bg-white'
+                                                            }`}
+                                                        >
+                                                            {p}
+                                                        </button>
+                                                    </div>
+                                                ))
+                                            }
+
+                                            <button
+                                                onClick={() => handlePageChange(currentPage + 1)}
+                                                disabled={currentPage === Math.ceil((course.total_enrollments_count || 0) / pageSize)}
+                                                className="p-2 text-gray-500 hover:text-gray-900 hover:bg-white rounded-lg transition-all disabled:opacity-30 disabled:hover:bg-transparent"
+                                            >
+                                                <ChevronRight size={18} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

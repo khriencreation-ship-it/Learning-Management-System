@@ -119,7 +119,7 @@ export async function GET(req: NextRequest) {
             // Apply OR filter: (cohort_id IN myCohortIds) OR (course_id IN myCourseIds)
             // Supabase .or() syntax: 'cohort_id.in.(...),course_id.in.(...)'
 
-            const conditions = [];
+            const conditions = [`sender_id.eq.${tutorId}`];
             if (myCohortIds.length > 0) {
                 conditions.push(`cohort_id.in.(${myCohortIds.join(',')})`);
             }
@@ -141,7 +141,7 @@ export async function GET(req: NextRequest) {
                         created_at: item.created_at,
                         cohort_name: item.cohorts?.name,
                         course_title: item.courses?.title,
-                        sender_role: item.sender_id ? 'tutor' : 'admin'
+                        sender_role: item.sender_id === tutorId ? 'tutor' : 'admin'
                     }));
                 } else if (broadcastError) {
                     console.error('Error fetching announcements:', broadcastError);

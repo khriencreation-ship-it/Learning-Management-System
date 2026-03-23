@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { sendWelcomeEmail } from '@/lib/mail';
 
 export async function GET(request: Request) {
     try {
@@ -54,13 +55,8 @@ export async function POST(request: Request) {
 
         const identifier = role === 'student' ? studentId : tutorId;
 
-        // Determine default password based on role
-        let defaultPassword = 'KhrienStudent123!'; // Fallback
-        if (role === 'student') {
-            defaultPassword = 'KhrienStudent123!';
-        } else if (role === 'tutor') {
-            defaultPassword = 'KhrienTutor123!';
-        }
+        // Determine default password (randomly generated)
+        const defaultPassword = Math.random().toString(36).slice(-8) + 'Aa1!';
 
         const finalPassword = password || defaultPassword;
 
@@ -102,6 +98,15 @@ export async function POST(request: Request) {
             // We don't necessarily want to fail here if the user was created, 
             // but it's good to know.
         }
+
+        // 3. Send Welcome Email (async)
+        sendWelcomeEmail({
+            email,
+            name,
+            identifier,
+            password: finalPassword,
+            role
+        }).catch(err => console.error('Failed to send welcome email:', err));
 
         return NextResponse.json({
             id: user.id,

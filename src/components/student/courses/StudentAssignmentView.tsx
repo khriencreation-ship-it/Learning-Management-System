@@ -59,6 +59,23 @@ const CountdownTimer = ({ targetDate }: { targetDate: string }) => {
     );
 };
 
+const isItemLocked = (item: any) => {
+    const hasUnlockDate = item.hasUnlockDate ?? item.metadata?.hasUnlockDate;
+    const unlockDate = item.unlockDate ?? item.metadata?.unlockDate;
+    const unlockTime = item.unlockTime ?? item.metadata?.unlockTime;
+
+    if (!hasUnlockDate || !unlockDate) return false;
+    
+    try {
+        const timeStr = unlockTime || "00:00";
+        const unlockDateTime = new Date(`${unlockDate}T${timeStr}:00`);
+        if (isNaN(unlockDateTime.getTime())) return false;
+        return unlockDateTime.getTime() > new Date().getTime();
+    } catch (e) {
+        return false;
+    }
+};
+
 export default function StudentAssignmentView({ assignment, courseId, cohortId, onComplete }: StudentAssignmentViewProps) {
     const [files, setFiles] = useState<File[]>([]);
     const [comment, setComment] = useState('');
@@ -174,6 +191,20 @@ export default function StudentAssignmentView({ assignment, courseId, cohortId, 
             setUploading(false);
         }
     };
+
+    if (isItemLocked(assignment)) {
+        return (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 bg-gray-50 text-center h-full">
+                <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-400 mb-6 shadow-inner">
+                    <FileText size={32} />
+                </div>
+                <h2 className="text-2xl font-black text-gray-900 mb-2 tracking-tight">Assignment Locked</h2>
+                <p className="text-gray-500 font-medium max-w-sm mx-auto leading-relaxed">
+                    This assignment is not yet available. It will unlock on {new Date(assignment.unlockDate || assignment.metadata?.unlockDate).toLocaleDateString()}.
+                </p>
+            </div>
+        );
+    }
 
     return (
         <div className="flex-1 h-full overflow-y-auto bg-gray-50/50 p-6 md:p-10">

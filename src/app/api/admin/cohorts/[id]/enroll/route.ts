@@ -44,10 +44,8 @@ export async function POST(
 
         if (error) throw error;
 
-        // FUTURE: Here we could optionally auto-enroll students in specific courses
-        // For now, we strictly follow the "cherry-pick" rule, so we do NOT create course_enrollments here.
 
-        return NextResponse.json({ success: true, message: 'Students enrolled successfully' });
+        return NextResponse.json({ success: true, message: 'Students enrolled in cohort successfully' });
     } catch (error: any) {
         console.error('Error enrolling students:', error);
         return NextResponse.json(

@@ -6,20 +6,20 @@ import { unstable_noStore as noStore } from 'next/cache';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-async function getCourse(id: string) {
+async function getCourse(id: string, page: number = 1, pageSize: number = 25) {
     noStore();
     try {
-        const { data: courseData, error } = await supabaseAdmin
+        const from = (page - 1) * pageSize;
+        const to = from + pageSize - 1;
+
+        // Fetch course details
+        const { data: courseData, error: courseError } = await supabaseAdmin
             .from('courses')
             .select(`
                 *,
                 course_modules (
                     *,
                     module_items (*)
-                ),
-                course_enrollments (
-                    student_id,
-                    student:profiles (full_name, identifier)
                 ),
                 course_cohorts (
                     cohort_id,
@@ -29,15 +29,31 @@ async function getCourse(id: string) {
             .eq('id', id)
             .single();
 
-        if (error) {
-            console.error("Error fetching course data:", error);
+        if (courseError || !courseData) {
+            console.error("Error fetching course data:", courseError);
             return null;
         }
 
-        console.log("Fetched Course Data ID:", id);
-        console.log("Fetched Course Video URL:", courseData?.video_url);
+        // Fetch paginated enrollments
+        const { data: enrollments, error: enrollError, count: totalCount } = await supabaseAdmin
+            .from('course_enrollments')
+            .select(`
+                student_id,
+                student:profiles (id, full_name, identifier)
+            `, { count: 'exact' })
+            .eq('course_id', id)
+            .range(from, to);
 
-        if (!courseData) return null;
+        if (enrollError) {
+            console.error("Error fetching enrollments:", enrollError);
+        }
+
+        // Deduplicate enrollments by student_id (handle multi-cohort enrollments if any)
+        const uniqueEnrollments = Array.from(
+            new Map(
+                (enrollments || []).map((e: any) => [e.student_id, e])
+            ).values()
+        );
 
         // Sort modules and items by order_index
         const sortedModules = (courseData.course_modules || [])
@@ -68,25 +84,16 @@ async function getCourse(id: string) {
             });
         });
 
-        // Deduplicate enrollments by student_id (handle multi-cohort enrollments)
-        const uniqueEnrollments = Array.from(
-            new Map(
-                (courseData.course_enrollments || []).map((e: any) => [e.student_id, e])
-            ).values()
-        );
-
         // Format dates on the server side
         const formattedCourse = {
             ...courseData,
             course_enrollments: uniqueEnrollments,
+            total_enrollments_count: totalCount || 0,
             status: courseData.status || 'draft',
             publishedAt: courseData.published_at ? new Date(courseData.published_at).toLocaleDateString('en-US', {
-                month: 'short',
-                day: '2-digit',
-                year: 'numeric',
+                month: 'short', day: '2-digit', year: 'numeric'
             }) : null,
             curriculum: sortedModules,
-            // Override DB counters with real-time calcs
             topics: topicsCount,
             lessons: lessonsCount,
             quizzes: quizzesCount,
@@ -103,13 +110,23 @@ async function getCourse(id: string) {
 
 export default async function CourseDetailsPage(props: any) {
     const params = await props.params;
+    const searchParams = await props.searchParams;
     const { id } = params;
-    const course = await getCourse(id);
+    const page = parseInt(searchParams.page as string) || 1;
+    const pageSize = 25;
+
+    const course = await getCourse(id, page, pageSize);
 
     if (!course) {
         notFound();
     }
 
-    return <CourseDetailsClient course={course} />;
+    return (
+        <CourseDetailsClient 
+            course={course} 
+            currentPage={page} 
+            pageSize={pageSize} 
+        />
+    );
 }
 

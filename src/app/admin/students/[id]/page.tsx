@@ -26,7 +26,7 @@ async function getStudentFullProfile(id: string) {
             .select('progress, enrolled_at, course_id, courses(*)')
             .eq('student_id', id);
 
-        // 3. Fetch Cohort Assignments (For reporting/sidebar only)
+        // 3. Fetch Cohort Assignments
         const { data: cohortAssignments } = await supabaseAdmin
             .from('cohort_students')
             .select('start_date, cohort_id, cohorts(*)')
@@ -40,9 +40,50 @@ async function getStudentFullProfile(id: string) {
             assignedAt: a.start_date ? new Date(a.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'
         })) || [];
 
-        // 4. Fetch Full Curriculum and Student Progress for Enrolled Courses
-        const enrolledCourseIds = directEnrollments?.map(e => e.course_id) || [];
+        // 3b. Fetch courses from assigned cohorts (to catch progress for cohort-only enrollments)
+        const cohortIds = cohortAssignments?.map(a => a.cohort_id) || [];
+        let cohortLinkedCourses: any[] = [];
+        if (cohortIds.length > 0) {
+            const { data: cc } = await supabaseAdmin
+                .from('course_cohorts')
+                .select('course_id, courses(*)')
+                .in('cohort_id', cohortIds);
+            cohortLinkedCourses = cc || [];
+        }
 
+        // 4. Unique list of enrolled courses (Direct + Cohort)
+        const courseMap = new Map<string, any>();
+
+        // Add direct enrollments first
+        directEnrollments?.forEach(enr => {
+            const courseData = Array.isArray(enr.courses) ? enr.courses[0] : enr.courses;
+            if (courseData) {
+                courseMap.set(enr.course_id, {
+                    ...courseData,
+                    enrolledAt: enr.enrolled_at,
+                    course_id: enr.course_id
+                });
+            }
+        });
+
+        // Add cohort-linked courses (don't overwrite direct if already present)
+        cohortLinkedCourses.forEach(cc => {
+            if (!courseMap.has(cc.course_id)) {
+                const courseData = Array.isArray(cc.courses) ? cc.courses[0] : cc.courses;
+                if (courseData) {
+                    const cohortAssign = cohortAssignments?.find(a => a.cohort_id === cc.cohort_id);
+                    courseMap.set(cc.course_id, {
+                        ...courseData,
+                        enrolledAt: cohortAssign?.start_date || new Date().toISOString(),
+                        course_id: cc.course_id
+                    });
+                }
+            }
+        });
+
+        const enrolledCourseIds = Array.from(courseMap.keys());
+
+        // 5. Fetch Full Curriculum and Student Progress
         const [curriculumData, studentProgressData] = await Promise.all([
             supabaseAdmin
                 .from('course_modules')
@@ -53,19 +94,15 @@ async function getStudentFullProfile(id: string) {
                 .from('student_progress')
                 .select('item_id')
                 .eq('student_id', id)
+                .eq('is_completed', true) // FIX: Only count completed items
         ]);
 
         const completedItemIds = new Set(studentProgressData.data?.map(p => p.item_id) || []);
 
-        // 5. Consolidate Courses with Progress
-        const consolidatedCourses = (directEnrollments || []).map(enrollment => {
-            const courseData = enrollment.courses as any;
-            // Handle both object and array response from Supabase
-            const course = Array.isArray(courseData) ? courseData[0] : courseData;
-
+        // 6. Consolidate Courses with Progress
+        const consolidatedCourses = enrolledCourseIds.map(courseId => {
+            const course = courseMap.get(courseId);
             if (!course) return null;
-
-            const courseId = enrollment.course_id;
 
             // Filter modules for this course
             const modules = curriculumData.data
@@ -80,7 +117,8 @@ async function getStudentFullProfile(id: string) {
                             id: item.id,
                             title: item.title,
                             type: item.type,
-                            isCompleted: completedItemIds.has(item.id)
+                            isCompleted: completedItemIds.has(item.id),
+                            metadata: item.metadata
                         }))
                 })) || [];
 
@@ -94,7 +132,7 @@ async function getStudentFullProfile(id: string) {
                 id: course.id,
                 title: course.title,
                 instructor: course.instructor,
-                enrolledAt: new Date(enrollment.enrolled_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                enrolledAt: new Date(course.enrolledAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
                 progress,
                 curriculum: modules
             };

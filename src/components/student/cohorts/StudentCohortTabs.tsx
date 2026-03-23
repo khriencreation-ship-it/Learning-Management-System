@@ -70,6 +70,8 @@ export default function StudentCohortTabs({ cohortId, cohortName, description, c
                         cohortName={cohortName}
                         initialCourses={courses}
                         isReadOnly={true}
+                        showStudentCount={false}
+                        showViewDetails={false}
                     />
                 }
                 {activeTab === 'announcements' &&

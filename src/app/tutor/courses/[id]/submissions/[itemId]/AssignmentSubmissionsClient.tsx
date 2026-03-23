@@ -18,8 +18,10 @@ import {
     ChevronRight,
     Search,
     Filter,
-    MoreVertical
+    MoreVertical,
+    Sparkles
 } from 'lucide-react';
+import AIPlagiarismChecker from '@/components/tutor/assignments/AIPlagiarismChecker';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getCurrentUser } from '@/lib/authClient';
@@ -150,8 +152,10 @@ export default function AssignmentSubmissionsClient({ assignment, courseId, cour
     };
 
     const filteredSubmissions = submissions.filter(sub => {
-        const matchesSearch = sub.student?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            sub.student?.identifier?.toLowerCase().includes(searchTerm.toLowerCase());
+        const student = sub.student || {};
+        const matchesSearch =
+            (student.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (student.identifier || '').toLowerCase().includes(searchTerm.toLowerCase());
         const matchesFilter = filterStatus === 'all' || sub.status === filterStatus;
         return matchesSearch && matchesFilter;
     });
@@ -398,6 +402,27 @@ export default function AssignmentSubmissionsClient({ assignment, courseId, cour
                                         )}
                                     </div>
                                 </div>
+
+                                {/* AI Plagiarism Checker */}
+                                {(() => {
+                                    const sources = [];
+                                    if (selectedSubmission.submission_data?.comment) {
+                                        sources.push({ label: 'Student Comment', value: selectedSubmission.submission_data.comment });
+                                    }
+                                    if (selectedSubmission.submission_data?.student_notes) {
+                                        sources.push({ label: 'Student Notes', value: selectedSubmission.submission_data.student_notes });
+                                    }
+
+                                    return (
+                                        <AIPlagiarismChecker
+                                            studentId={selectedSubmission.student_id}
+                                            assignmentId={selectedSubmission.item_id}
+                                            availableSources={sources}
+                                            availableFiles={(selectedSubmission.submission_data?.attachments || selectedSubmission.submission_data?.files) || []}
+                                            initialText={sources[0]?.value || ""}
+                                        />
+                                    );
+                                })()}
 
                                 {/* Grading Form */}
                                 <div className="p-8 bg-gray-900 rounded-[2.5rem] text-white shadow-2xl shadow-gray-900/40 space-y-8 relative overflow-hidden">
