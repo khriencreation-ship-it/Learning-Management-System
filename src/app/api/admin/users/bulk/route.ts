@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { sendWelcomeEmail } from '@/lib/mail';
+import { sendWelcomeEmailsBatch } from '@/lib/mail';
 
 export async function POST(request: Request) {
     try {
@@ -20,6 +20,8 @@ export async function POST(request: Request) {
             failed: 0,
             errors: [] as string[]
         };
+
+        const emailQueue: any[] = [];
 
         // Fetch current count to generate IDs if needed
         let currentCount = 0;
@@ -63,7 +65,6 @@ export async function POST(request: Request) {
                 }
 
                 // 3. Password Generation
-                // Use provided password or generate random one
                 const password = user.password || Math.random().toString(36).slice(-8) + 'Aa1!';
 
                 // 4. Create User in Auth
@@ -95,24 +96,32 @@ export async function POST(request: Request) {
                     .eq('id', authData.user.id);
 
                 if (profileError) {
-                    // Log but don't fail the whole batch, user is created
                     console.error(`Profile update failed for ${email}:`, profileError);
                 }
 
-                // 6. Send Welcome Email (async)
-                sendWelcomeEmail({
+                // 6. Queue for Batch Email
+                emailQueue.push({
                     email,
                     name,
                     identifier,
                     password,
                     role
-                }).catch(err => console.error('Failed to send bulk welcome email for:', email, err));
+                });
 
                 stats.success++;
 
             } catch (err: any) {
                 stats.failed++;
                 stats.errors.push(err.message);
+            }
+        }
+
+        // 7. Send Emails in Batch (Awaiting to ensure delivery in serverless environment)
+        if (emailQueue.length > 0) {
+            const emailResult = await sendWelcomeEmailsBatch(emailQueue);
+            if (!emailResult.success) {
+                console.error('Batch Welcome Email failed to send:', emailResult.error);
+                stats.errors.push('Users created but welcome emails failed to send. Please check Resend logs.');
             }
         }
 

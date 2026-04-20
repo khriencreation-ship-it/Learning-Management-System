@@ -19,6 +19,8 @@ export default function BulkUploadModal({ isOpen, onClose, onSuccess, role }: Bu
     const [uploadResult, setUploadResult] = useState<any | null>(null);
     const [error, setError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [currentBatch, setCurrentBatch] = useState(0);
+    const [totalBatches, setTotalBatches] = useState(0);
     const router = useRouter();
 
     if (!isOpen) return null;
@@ -30,6 +32,7 @@ export default function BulkUploadModal({ isOpen, onClose, onSuccess, role }: Bu
             parseFile(selectedFile);
             setError(null);
             setUploadResult(null);
+            setCurrentBatch(0);
         }
     };
 
@@ -57,47 +60,71 @@ export default function BulkUploadModal({ isOpen, onClose, onSuccess, role }: Bu
 
         setUploading(true);
         setError(null);
+        setUploadResult(null);
 
         try {
-            // Map keys to normalize data (email, name, phone, etc)
-            // We assume headers are somewhat descriptive, but we should do a best-effort mapping
-            // or expect specific headers.
+            // 1. Map keys to normalize data
             const normalizedData = previewData.map((row: any) => {
-                // simple case-insensitive mapping
                 const normalized: any = {};
                 Object.keys(row).forEach(key => {
                     const lowerKey = key.toLowerCase().trim();
                     if (lowerKey.includes('name')) normalized.name = row[key];
                     else if (lowerKey.includes('email') || lowerKey.includes('mail')) normalized.email = row[key];
                     else if (lowerKey.includes('phone') || lowerKey.includes('mobile')) normalized.phone = row[key];
-                    else if (lowerKey.includes('id') && !lowerKey.includes('email')) normalized.id = row[key]; // studentId or tutorId
+                    else if (lowerKey.includes('id') && !lowerKey.includes('email')) normalized.id = row[key];
                     else if (lowerKey.includes('payment') || lowerKey.includes('status')) normalized.paymentStatus = row[key];
                     else if (lowerKey.includes('password')) normalized.password = row[key];
                 });
                 return normalized;
             });
 
-            const res = await fetch('/api/admin/users/bulk', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ users: normalizedData, role }),
-            });
+            // 2. Split into chunks (e.g., 50 at a time)
+            const CHUNK_SIZE = 50;
+            const chunks = [];
+            for (let i = 0; i < normalizedData.length; i += CHUNK_SIZE) {
+                chunks.push(normalizedData.slice(i, i + CHUNK_SIZE));
+            }
+            setTotalBatches(chunks.length);
 
-            const result = await res.json();
+            // 3. Aggregate Stats
+            const aggregateStats = {
+                total: normalizedData.length,
+                success: 0,
+                failed: 0,
+                errors: [] as string[]
+            };
 
-            if (!res.ok) {
-                throw new Error(result.error || 'Upload failed');
+            // 4. Process Chunks sequentially
+            for (let i = 0; i < chunks.length; i++) {
+                setCurrentBatch(i + 1);
+                
+                const res = await fetch('/api/admin/users/bulk', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ users: chunks[i], role }),
+                });
+
+                const result = await res.json();
+
+                if (!res.ok) {
+                    // Collect batch level errors but keep going if possible, 
+                    // or stop if it's a critical server error
+                    throw new Error(result.error || `Batch ${i + 1} failed`);
+                }
+
+                // Aggregate counts
+                aggregateStats.success += result.stats.success;
+                aggregateStats.failed += result.stats.failed;
+                aggregateStats.errors = [...aggregateStats.errors, ...result.stats.errors];
             }
 
-            setUploadResult(result);
-            if (result.stats.success > 0) {
-                // Trigger success callback after a short delay or let user close
-            }
+            setUploadResult({ stats: aggregateStats });
 
         } catch (err: any) {
             setError(err.message);
         } finally {
             setUploading(false);
+            setCurrentBatch(0);
         }
     };
 
@@ -220,6 +247,24 @@ export default function BulkUploadModal({ isOpen, onClose, onSuccess, role }: Bu
                                         And {previewData.length - 5} more rows...
                                     </p>
                                 )}
+                            </div>
+                        )}
+
+                        {uploading && (
+                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                <div className="flex justify-between text-sm font-bold text-gray-700 mb-2">
+                                    <span>Importing Batch {currentBatch} of {totalBatches}</span>
+                                    <span>{Math.round((currentBatch / totalBatches) * 100)}%</span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                                    <div 
+                                        className="bg-primary h-full transition-all duration-500 rounded-full" 
+                                        style={{ width: `${(currentBatch / totalBatches) * 100}%` }}
+                                    />
+                                </div>
+                                <p className="text-xs text-gray-500 mt-2 italic">
+                                    Please keep this window open until the import is complete.
+                                </p>
                             </div>
                         )}
 
