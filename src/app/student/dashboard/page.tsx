@@ -29,5 +29,5 @@ export default function StudentDashboard() {
 
     if (!user) return null;
 
-    return <StudentDashboardClient />;
+    return <StudentDashboardClient user={user} />;
 }

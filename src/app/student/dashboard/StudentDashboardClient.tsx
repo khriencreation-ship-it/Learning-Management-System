@@ -8,10 +8,12 @@ import RecentList from '@/components/admin/RecentList';
 import StudentWelcome from '@/components/student/StudentWelcome';
 import RecentBroadcasts from '@/components/common/RecentBroadcasts';
 import NotificationDropdown from '@/components/common/NotificationDropdown';
-import { LayoutGrid, BookOpen, X, Calendar, User, Layers } from 'lucide-react';
+import { LayoutGrid, BookOpen, X, Calendar, User as UserIcon, Layers } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { User } from '@/lib/authClient';
+import ActivitiesAndChallenges from '@/components/student/ActivitiesAndChallenges';
 
-export default function StudentDashboardClient() {
+export default function StudentDashboardClient({ user }: { user: User }) {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [selectedBroadcast, setSelectedBroadcast] = useState<any>(null);
@@ -114,6 +116,12 @@ export default function StudentDashboardClient() {
                     />
                 </div>
 
+                {/* Activities & Challenges */}
+                <ActivitiesAndChallenges 
+                    userName={user.name || 'Student'} 
+                    courseName={data.recentCourses[0]?.title || 'AI Foundations and Practical Intelligence'} 
+                />
+
                 {/* Recent Lists Grid & Broadcasts */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="space-y-6">
@@ -194,7 +202,7 @@ export default function StudentDashboardClient() {
                                             })}
                                         </span>
                                         <span className="flex items-center gap-1.5 capitalize">
-                                            <User size={16} />
+                                            <UserIcon size={16} />
                                             Sent by {selectedBroadcast.sender_role}
                                         </span>
                                     </div>

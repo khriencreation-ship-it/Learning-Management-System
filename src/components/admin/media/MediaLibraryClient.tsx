@@ -18,6 +18,7 @@ import {
     CheckSquare
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/lib/supabase';
 
 interface Folder {
     id: string;
@@ -62,7 +63,7 @@ export default function MediaLibraryClient({
     const [files, setFiles] = useState<MediaFile[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isUploading, setIsUploading] = useState(false);
-    const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0, message: '' });
+    const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0, filePercent: 0, message: '' });
     const [isCreatingFolder, setIsCreatingFolder] = useState(false);
     const [newFolderName, setNewFolderName] = useState('');
     const [isUploadDropdownOpen, setIsUploadDropdownOpen] = useState(false);
@@ -223,18 +224,57 @@ export default function MediaLibraryClient({
     };
 
     const uploadFile = async (file: File, folderId: string | null = null) => {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('folderId', folderId || currentFolderId || 'root');
+        const bucket = 'media-library';
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const filePath = fileName;
 
+        // 1. Direct Upload to Supabase Storage (Bypasses Vercel 4.5MB limit)
+        const { data: uploadData, error: uploadError } = await supabase.storage
+            .from(bucket)
+            .upload(filePath, file, {
+                cacheControl: '3600',
+                upsert: false,
+                // Supabase SDK (v2+) supports onUploadProgress, but types might be missing
+                onUploadProgress: (progress: any) => {
+                    const percent = (progress.loaded / progress.total) * 100;
+                    setUploadProgress(prev => ({ 
+                        ...prev, 
+                        filePercent: Math.round(percent),
+                        message: `Uploading ${file.name}...` 
+                    }));
+                }
+            } as any);
+
+        if (uploadError) {
+            console.error('Storage upload failed:', uploadError);
+            throw new Error(`Storage upload failed: ${uploadError.message}`);
+        }
+
+        // 2. Get Public URL
+        const { data: { publicUrl } } = supabase.storage
+            .from(bucket)
+            .getPublicUrl(filePath);
+
+        // 3. Save Metadata to DB via API
         const res = await fetch('/api/admin/media', {
             method: 'POST',
-            body: formData
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                filename: file.name,
+                url: publicUrl,
+                type: file.type.split('/')[0] || 'unknown',
+                mime_type: file.type,
+                size: file.size,
+                key: filePath,
+                bucket,
+                folderId: folderId || currentFolderId || 'root'
+            })
         });
 
         if (!res.ok) {
             const errorText = await res.text();
-            throw new Error(`Upload failed: ${res.status} ${res.statusText} - ${errorText}`);
+            throw new Error(`Metadata save failed: ${res.status} ${res.statusText} - ${errorText}`);
         }
         return res.json();
     };
@@ -245,12 +285,12 @@ export default function MediaLibraryClient({
 
         setIsUploadDropdownOpen(false);
         setIsUploading(true);
-        setUploadProgress({ current: 0, total: filesToUpload.length, message: 'Starting upload...' });
+        setUploadProgress({ current: 0, total: filesToUpload.length, filePercent: 0, message: 'Starting upload...' });
 
         // Process sequentially
         for (let i = 0; i < filesToUpload.length; i++) {
             const file = filesToUpload[i];
-            setUploadProgress({ current: i + 1, total: filesToUpload.length, message: `Uploading ${file.name}...` });
+            setUploadProgress(prev => ({ ...prev, current: i + 1, total: filesToUpload.length, filePercent: 0, message: `Uploading ${file.name}...` }));
             try {
                 await uploadFile(file);
             } catch (error) {
@@ -270,7 +310,7 @@ export default function MediaLibraryClient({
 
         setIsUploadDropdownOpen(false);
         setIsUploading(true);
-        setUploadProgress({ current: 0, total: filesToUpload.length, message: 'Analyzing folder structure...' });
+        setUploadProgress({ current: 0, total: filesToUpload.length, filePercent: 0, message: 'Analyzing folder structure...' });
 
         // Cache for created folder IDs to avoid redundant API calls
         const folderPathCache = new Map<string, string>(); // Path string -> Folder ID
@@ -320,11 +360,13 @@ export default function MediaLibraryClient({
             // e.g. "MyFolder/Image.png" or "MyFolder/Sub/Image.png"
             const relativePath = file.webkitRelativePath;
 
-            setUploadProgress({
+            setUploadProgress(prev => ({
+                ...prev,
                 current: i + 1,
                 total: filesToUpload.length,
+                filePercent: 0,
                 message: `Processing ${file.name}...`
-            });
+            }));
 
             try {
                 let targetFolderId = currentFolderId;
@@ -449,20 +491,39 @@ export default function MediaLibraryClient({
 
             {/* Upload Progress Indicator */}
             {isUploading && (
-                <div className="bg-purple-50 border border-purple-100 rounded-lg p-4 flex items-center gap-4 animate-in fade-in slide-in-from-top-2">
-                    <Loader2 className="text-primary animate-spin" />
-                    <div className="flex-1">
-                        <p className="text-sm font-semibold text-gray-900">{uploadProgress.message}</p>
-                        <div className="w-full bg-purple-200 rounded-full h-1.5 mt-2 overflow-hidden">
-                            <div
-                                className="bg-primary h-full transition-all duration-300 rounded-full"
-                                style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
-                            />
+                <div className="bg-purple-50 border border-purple-100 rounded-xl p-5 flex items-center gap-5 animate-in fade-in slide-in-from-top-4 shadow-sm">
+                    <div className="relative flex-shrink-0">
+                        <Loader2 className="text-primary animate-spin w-6 h-6" />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            {/* Potential for a mini radial progress if desired */}
                         </div>
                     </div>
-                    <span className="text-xs font-bold text-gray-500">
-                        {uploadProgress.current}/{uploadProgress.total}
-                    </span>
+                    <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-end mb-2">
+                            <p className="text-sm font-bold text-gray-900 truncate pr-4">
+                                {uploadProgress.message}
+                            </p>
+                            <span className="text-xs font-black text-primary bg-white px-2 py-0.5 rounded border border-purple-100 tabular-nums">
+                                {uploadProgress.filePercent}%
+                            </span>
+                        </div>
+                        <div className="w-full bg-purple-100 rounded-full h-2.5 overflow-hidden">
+                            <div
+                                className="bg-primary h-full transition-all duration-300 rounded-full shadow-[0_0_8px_rgba(147,51,234,0.3)]"
+                                style={{ width: `${uploadProgress.filePercent}%` }}
+                            />
+                        </div>
+                        <div className="flex justify-between mt-1.5">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                File {uploadProgress.current} of {uploadProgress.total}
+                            </span>
+                            {uploadProgress.total > 1 && (
+                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                    Overall: {Math.round((uploadProgress.current / uploadProgress.total) * 100)}%
+                                </span>
+                            )}
+                        </div>
+                    </div>
                 </div>
             )}
 

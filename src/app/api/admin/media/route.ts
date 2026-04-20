@@ -33,80 +33,76 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
     try {
-        const formData = await req.formData();
-        const file = formData.get('file') as File;
-        const folderId = formData.get('folderId') as string;
-        const bucket = 'media-library';
+        const contentType = req.headers.get('content-type') || '';
+        let file: File | null = null;
+        let folderId: string | null = null;
+        let metadata: any = {};
 
-        if (!file) {
-            return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+        if (contentType.includes('multipart/form-data')) {
+            const formData = await req.formData();
+            file = formData.get('file') as File;
+            folderId = formData.get('folderId') as string;
+            
+            // Allow passing metadata directly in form data
+            if (formData.has('metadata')) {
+                metadata = JSON.parse(formData.get('metadata') as string);
+            } else {
+                // Individual fields fallback
+                metadata = {
+                    filename: formData.get('filename'),
+                    url: formData.get('url'),
+                    type: formData.get('type'),
+                    size: formData.get('size') ? parseInt(formData.get('size') as string) : undefined,
+                    key: formData.get('key'),
+                    bucket: formData.get('bucket') || 'media-library',
+                };
+            }
+        } else if (contentType.includes('application/json')) {
+            const body = await req.json();
+            metadata = body;
+            folderId = body.folderId;
         }
 
-        // Upload to Storage
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const filePath = fileName; // We keep it flat in the bucket to avoid complexity with folder moves? Or mimic folder structure?
-        // Recommendation: Keep flat/date-based in storage, use DB for hierarchy. easier to move files around.
+        const bucket = metadata.bucket || 'media-library';
+        let finalMetadata: any = null;
 
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
+        if (file) {
+            // Standard Upload Path (Legacy/Small files)
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+            const filePath = fileName;
 
-        // Ensure bucket exists (simplified check)
-        // ... (Usually handled by setup, skipping excessive checks for perf)
+            const arrayBuffer = await file.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
 
-        const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
-            .from(bucket)
-            .upload(filePath, buffer, {
-                contentType: file.type,
-                upsert: false
-            });
-
-        if (uploadError) {
-            console.error('Upload error:', uploadError);
-
-            // Auto-create bucket if missing
-            if (uploadError.message.includes('Bucket not found') || uploadError.message.includes('The resource was not found')) {
-                console.log(`Bucket '${bucket}' not found. Attempting to create...`);
-                const { data: bucketData, error: createBucketError } = await supabaseAdmin.storage.createBucket(bucket, {
-                    public: true,
-                    fileSizeLimit: 52428800, // 50MB
-                    allowedMimeTypes: ['image/*', 'video/*', 'application/pdf', 'text/*']
+            const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+                .from(bucket)
+                .upload(filePath, buffer, {
+                    contentType: file.type,
+                    upsert: false
                 });
 
-                if (createBucketError) {
-                    console.error('Failed to create bucket:', createBucketError);
-                    // Fallback: Return original error if creation fails
-                    return NextResponse.json({ error: `Bucket not found and creation failed: ${createBucketError.message}` }, { status: 500 });
-                }
-
-                console.log(`Bucket '${bucket}' created successfully. Retrying upload...`);
-
-                // Retry upload
-                const { data: retryData, error: retryError } = await supabaseAdmin.storage
-                    .from(bucket)
-                    .upload(filePath, buffer, {
-                        contentType: file.type,
-                        upsert: false
+            if (uploadError) {
+                console.error('Upload error:', uploadError);
+                // Bucket creation logic (kept for robustness)
+                if (uploadError.message.includes('Bucket not found') || uploadError.message.includes('The resource was not found')) {
+                    const { error: createBucketError } = await supabaseAdmin.storage.createBucket(bucket, {
+                        public: true,
+                        fileSizeLimit: 524288000, // 500MB
+                        allowedMimeTypes: ['image/*', 'video/*', 'application/pdf', 'text/*']
                     });
-
-                if (retryError) {
-                    return NextResponse.json({ error: `Retry failed: ${retryError.message}` }, { status: 500 });
+                    if (createBucketError) return NextResponse.json({ error: `Bucket missing: ${createBucketError.message}` }, { status: 500 });
+                    
+                    const { error: retryError } = await supabaseAdmin.storage.from(bucket).upload(filePath, buffer, { contentType: file.type });
+                    if (retryError) return NextResponse.json({ error: `Retry failed: ${retryError.message}` }, { status: 500 });
+                } else {
+                    return NextResponse.json({ error: uploadError.message }, { status: 500 });
                 }
-                // If success, continue to public URL generation...
-            } else {
-                return NextResponse.json({ error: uploadError.message }, { status: 500 });
             }
-        }
 
-        // Get Public URL
-        const { data: { publicUrl } } = supabaseAdmin.storage
-            .from(bucket)
-            .getPublicUrl(filePath);
+            const { data: { publicUrl } } = supabaseAdmin.storage.from(bucket).getPublicUrl(filePath);
 
-        // Save Metadata to DB
-        const { data: mediaRecord, error: dbError } = await supabaseAdmin
-            .from('media_files')
-            .insert([{
+            finalMetadata = {
                 filename: file.name,
                 url: publicUrl,
                 type: file.type.split('/')[0] || 'unknown',
@@ -115,7 +111,27 @@ export async function POST(req: NextRequest) {
                 key: filePath,
                 bucket,
                 folder_id: (folderId && folderId !== 'null' && folderId !== 'root') ? folderId : null
-            }])
+            };
+        } else if (metadata.url && metadata.key) {
+            // Metadata-only path (Pre-uploaded via client)
+            finalMetadata = {
+                filename: metadata.filename || 'unnamed',
+                url: metadata.url,
+                type: metadata.type || metadata.mime_type?.split('/')[0] || 'unknown',
+                mime_type: metadata.mime_type || 'application/octet-stream',
+                size: metadata.size || 0,
+                key: metadata.key,
+                bucket: metadata.bucket || 'media-library',
+                folder_id: (folderId && folderId !== 'null' && folderId !== 'root') ? folderId : null
+            };
+        } else {
+            return NextResponse.json({ error: 'No file or metadata provided' }, { status: 400 });
+        }
+
+        // Save Record to DB
+        const { data: mediaRecord, error: dbError } = await supabaseAdmin
+            .from('media_files')
+            .insert([finalMetadata])
             .select()
             .single();
 
