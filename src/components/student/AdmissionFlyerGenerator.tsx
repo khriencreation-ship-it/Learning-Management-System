@@ -110,10 +110,35 @@ export default function AdmissionFlyerGenerator({ userName, courseName, onClose 
         }
     };
 
-    const downloadFlyer = () => {
+    const downloadFlyer = async () => {
         if (!previewUrl) return;
+
+        const fileName = `Khrien_Admission_${userName.replace(/\s+/g, '_')}.png`;
+
+        // Modern browsers / Mobile: Use Web Share API if supported (especially helpful for iOS)
+        if (typeof navigator !== 'undefined' && navigator.share && navigator.canShare) {
+            try {
+                const response = await fetch(previewUrl);
+                const blob = await response.blob();
+                const file = new File([blob], fileName, { type: 'image/png' });
+
+                if (navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file],
+                        title: 'My Khrien Academy Admission Flyer',
+                        text: 'Check out my official admission flyer from Khrien Academy! 🚀',
+                    });
+                    return; // Successfully handled by share sheet
+                }
+            } catch (err) {
+                console.error('Sharing failed:', err);
+                // Fallback to traditional download if share fails or is cancelled
+            }
+        }
+
+        // Desktop / Fallback: Standard anchor download
         const link = document.createElement('a');
-        link.download = `Khrien_Admission_${userName.replace(/\s+/g, '_')}.png`;
+        link.download = fileName;
         link.href = previewUrl;
         link.click();
     };
@@ -133,7 +158,7 @@ export default function AdmissionFlyerGenerator({ userName, courseName, onClose 
                     <X size={24} />
                 </button>
 
-                <div className="md:w-3/5 bg-gray-900 flex items-center justify-center p-8 overflow-hidden">
+                <div className="md:w-3/5 bg-gray-900 flex items-center justify-center p-8 overflow-hidden border-b md:border-b-0 md:border-r border-white/10">
                     <div className="relative aspect-[3/4] w-full max-w-[450px] shadow-2xl rounded-2xl overflow-hidden border-4 border-white/20 bg-black">
                         {previewUrl ? (
                             <img src={previewUrl} alt="Flyer Preview" className="w-full h-full object-contain animate-in fade-in zoom-in duration-500" />
@@ -227,13 +252,20 @@ export default function AdmissionFlyerGenerator({ userName, courseName, onClose 
                                 {generating ? 'Processing...' : 'Apply Photo to Template'}
                             </button>
                         ) : (
-                            <button
-                                onClick={downloadFlyer}
-                                className="w-full py-5 bg-emerald-500 text-white rounded-[24px] font-black text-lg shadow-xl shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-3 transform active:scale-95"
-                            >
-                                <Download />
-                                Download My Flyer
-                            </button>
+                            <div className="space-y-3">
+                                <button
+                                    onClick={downloadFlyer}
+                                    className="w-full py-5 bg-emerald-500 text-white rounded-[24px] font-black text-lg shadow-xl shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-3 transform active:scale-95"
+                                >
+                                    <Download size={24} />
+                                    Save / Share My Flyer
+                                </button>
+                                
+                                <p className="text-[11px] text-center text-gray-400 font-bold px-4 leading-relaxed">
+                                    <Smartphone size={12} className="inline mr-1" />
+                                    iPhone user? You can also long-press the image to save it directly to your photos.
+                                </p>
+                            </div>
                         )}
                         
                         {previewUrl && (

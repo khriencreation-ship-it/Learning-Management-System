@@ -37,8 +37,11 @@ export default function LoginPage() {
         e.preventDefault();
         setIsLoading(true);
 
+        // Trim identifier to prevent issues with accidental spaces during copy-paste
+        const cleanIdentifier = identifier.trim();
+
         try {
-            const user = await login({ identifier, password });
+            const user = await login({ identifier: cleanIdentifier, password });
 
             if (user) {
                 // Show success toast with role-specific message
@@ -58,7 +61,7 @@ export default function LoginPage() {
                 }, 1500);
             } else {
                 // Show error toast with role-specific message
-                const role = detectUserRole(identifier);
+                const role = detectUserRole(cleanIdentifier);
                 error(getRoleErrorMessage(role));
             }
         } catch (err) {
