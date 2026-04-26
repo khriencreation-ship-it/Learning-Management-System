@@ -4,15 +4,25 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export const revalidate = 0;
 
-async function getStudents(page: number = 1, pageSize: number = 25) {
+async function getStudents(page: number = 1, pageSize: number = 25, search?: string, status?: string) {
     try {
         const from = (page - 1) * pageSize;
         const to = from + pageSize - 1;
 
-        const { data: students, error, count } = await supabaseAdmin
+        let query = supabaseAdmin
             .from('profiles')
             .select('*', { count: 'exact' })
-            .eq('role', 'student')
+            .eq('role', 'student');
+
+        if (search) {
+            query = query.or(`full_name.ilike.%${search}%,username.ilike.%${search}%,identifier.ilike.%${search}%`);
+        }
+
+        if (status && status !== 'all') {
+            query = query.eq('payment_status', status);
+        }
+
+        const { data: students, error, count } = await query
             .order('updated_at', { ascending: false })
             .range(from, to);
 
@@ -41,9 +51,11 @@ async function getStudents(page: number = 1, pageSize: number = 25) {
 export default async function StudentsPage(props: any) {
     const searchParams = await props.searchParams;
     const page = parseInt(searchParams.page as string) || 1;
+    const search = searchParams.search as string || '';
+    const status = searchParams.status as string || 'all';
     const pageSize = 25;
 
-    const { students, totalCount } = await getStudents(page, pageSize);
+    const { students, totalCount } = await getStudents(page, pageSize, search, status);
 
     return (
         <DashboardLayout>

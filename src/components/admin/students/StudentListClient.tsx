@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { 
     Search, Plus, MoreHorizontal, Mail, Phone, User, CheckCircle2, 
     XCircle, AlertCircle, Eye, Edit2, Trash2, Upload,
@@ -38,10 +38,18 @@ export default function StudentListClient({
     pageSize 
 }: StudentListClientProps) {
     const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    
     const [students, setStudents] = useState<Student[]>(initialStudents);
     const [totalCount, setTotalCount] = useState(initialTotalCount);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [filterStatus, setFilterStatus] = useState('all');
+    
+    // Initial values from URL
+    const initialSearch = searchParams.get('search') || '';
+    const initialStatus = searchParams.get('status') || 'all';
+    
+    const [searchQuery, setSearchQuery] = useState(initialSearch);
+    const [filterStatus, setFilterStatus] = useState(initialStatus);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -55,24 +63,46 @@ export default function StudentListClient({
         setTotalCount(initialTotalCount);
     }, [initialStudents, initialTotalCount]);
 
+    // Handle URL updates for search and filter
+    const createQueryString = useCallback(
+        (params: Record<string, string | number | null>) => {
+            const newSearchParams = new URLSearchParams(searchParams.toString());
+            
+            Object.entries(params).forEach(([key, value]) => {
+                if (value === null || value === '' || value === 'all') {
+                    newSearchParams.delete(key);
+                } else {
+                    newSearchParams.set(key, value.toString());
+                }
+            });
+            
+            return newSearchParams.toString();
+        },
+        [searchParams]
+    );
+
+    // Debounce search update
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (searchQuery !== initialSearch) {
+                router.push(`${pathname}?${createQueryString({ search: searchQuery, page: 1 })}`);
+            }
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [searchQuery, initialSearch, pathname, router, createQueryString]);
+
+    const handleFilterChange = (newStatus: string) => {
+        setFilterStatus(newStatus);
+        router.push(`${pathname}?${createQueryString({ status: newStatus, page: 1 })}`);
+    };
+
     const totalPages = Math.ceil(totalCount / pageSize);
 
     const handlePageChange = (newPage: number) => {
         if (newPage < 1 || newPage > totalPages) return;
-        router.push(`/admin/students?page=${newPage}`);
+        router.push(`${pathname}?${createQueryString({ page: newPage })}`);
     };
-
-    const filteredStudents = students.filter(student => {
-        if (!student) return false;
-        const matchesSearch = ((student.name || '').toLowerCase()).includes(searchQuery.toLowerCase()) ||
-            ((student.studentId || '').toLowerCase()).includes(searchQuery.toLowerCase()) ||
-            ((student.email || '').toLowerCase()).includes(searchQuery.toLowerCase());
-
-        const matchesFilter = filterStatus === 'all' ||
-            ((student.paymentStatus || 'unpaid').toLowerCase()) === filterStatus;
-
-        return matchesSearch && matchesFilter;
-    });
 
     const getPaymentBadge = (status: string) => {
         const s = (status || 'unpaid').toLowerCase();
@@ -110,7 +140,13 @@ export default function StudentListClient({
 
     const handleRefresh = async () => {
         try {
-            const res = await fetch(`/api/admin/students?page=${currentPage}&pageSize=${pageSize}`);
+            const query = createQueryString({ 
+                page: currentPage, 
+                pageSize,
+                search: searchQuery,
+                status: filterStatus
+            });
+            const res = await fetch(`/api/admin/students?${query}`);
             if (res.ok) {
                 const data = await res.json();
                 if (data.students) {
@@ -244,7 +280,7 @@ export default function StudentListClient({
                         <span className="text-xs font-bold text-gray-400 uppercase tracking-widest hidden sm:block">Filter By:</span>
                         <select
                             value={filterStatus}
-                            onChange={(e) => setFilterStatus(e.target.value)}
+                            onChange={(e) => handleFilterChange(e.target.value)}
                             className="px-4 py-3 bg-gray-50 border-transparent focus:bg-white focus:border-primary/30 focus:ring-4 focus:ring-primary/5 rounded-2xl text-sm font-bold text-gray-700 transition-all focus:outline-none min-w-[140px]"
                         >
                             <option value="all">All Payments</option>
@@ -269,8 +305,8 @@ export default function StudentListClient({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
-                            {filteredStudents.length > 0 ? (
-                                filteredStudents.map((student) => (
+                            {students.length > 0 ? (
+                                students.map((student) => (
                                     <tr key={student.id} className="group hover:bg-gray-50/50 transition-colors">
                                         <td className="px-8 py-5">
                                             <div className="flex items-center gap-4">
