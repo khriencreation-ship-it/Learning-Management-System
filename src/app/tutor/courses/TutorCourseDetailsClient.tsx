@@ -100,6 +100,9 @@ export default function TutorCourseDetailsClient({ course: initialCourse }: Tuto
                                     <video
                                         src={course.video_url}
                                         controls
+                                        controlsList="nodownload"
+                                        disablePictureInPicture
+                                        onContextMenu={(e) => e.preventDefault()}
                                         autoPlay
                                         className="w-full h-full object-cover"
                                         onEnded={() => setIsPlaying(false)}

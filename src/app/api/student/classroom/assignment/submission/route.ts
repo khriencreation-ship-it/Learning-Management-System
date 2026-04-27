@@ -24,15 +24,11 @@ export async function GET(req: NextRequest) {
             .eq('student_id', user.id)
             .eq('item_id', item_id);
 
-        if (cohort_id && cohort_id !== 'null' && cohort_id !== 'undefined') {
-            query = query.eq('cohort_id', cohort_id);
-        } else {
-            query = query.is('cohort_id', null);
-        }
-
-        const { data, error } = await query.maybeSingle();
+        const { data: submissions, error } = await query.order('created_at', { ascending: false });
 
         if (error) throw error;
+
+        const data = submissions && submissions.length > 0 ? submissions[0] : null;
 
         return NextResponse.json(data);
     } catch (error: any) {

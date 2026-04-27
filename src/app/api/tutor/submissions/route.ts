@@ -1,6 +1,6 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { sendNotification } from '@/lib/notifications';
 
 export async function GET(req: NextRequest) {
     try {
@@ -78,6 +78,22 @@ export async function POST(req: NextRequest) {
             .single();
 
         if (error) throw error;
+
+        // Send notification to student
+        try {
+            const { data: item } = await supabaseAdmin.from('module_items').select('title').eq('id', data.item_id).single();
+            const assignmentTitle = item?.title || 'an assignment';
+            
+            await sendNotification(
+                data.student_id,
+                'Assignment Graded',
+                `Your submission for "${assignmentTitle}" has been graded.`,
+                'grading',
+                `/student/courses/${data.course_id}/assignment/${data.item_id}?cohortId=${data.cohort_id}`
+            );
+        } catch (nError) {
+            console.error('Error sending grading notification:', nError);
+        }
 
         return NextResponse.json(data);
     } catch (error: any) {

@@ -103,44 +103,97 @@ export async function POST(
             return NextResponse.json({ error: 'Invalid data format' }, { status: 400 });
         }
 
-        // 1. Delete existing modules for this course
-        // Using delete-replace strategy. Because of CASCADE, this deletes items too.
-        console.log('Clearing existing modules/items...');
-        const { error: deleteError } = await supabaseAdmin
+        // 1. Identify existing and incoming IDs to handle deletions gracefully
+        const incomingModuleIds = modules
+            .map(m => m.id)
+            .filter(id => id && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id));
+
+        const incomingItemIds: string[] = [];
+        modules.forEach(m => {
+            (m.lessons || []).forEach((item: any) => {
+                if (item.id && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(item.id)) {
+                    incomingItemIds.push(item.id);
+                }
+            });
+        });
+
+        console.log('Syncing curriculum...');
+        console.log('Incoming Module IDs:', incomingModuleIds);
+        console.log('Incoming Item IDs:', incomingItemIds);
+
+        // 1a. Delete items that are no longer in the curriculum
+        // We first need to know all modules belonging to this course to scope the item deletion
+        const { data: currentModules } = await supabaseAdmin
+            .from('course_modules')
+            .select('id')
+            .eq('course_id', courseId);
+        
+        const currentModuleIds = currentModules?.map(m => m.id) || [];
+
+        if (currentModuleIds.length > 0) {
+            // Delete items not in incoming list
+            const itemDeleteQuery = supabaseAdmin
+                .from('module_items')
+                .delete()
+                .in('module_id', currentModuleIds);
+            
+            if (incomingItemIds.length > 0) {
+                // PostgREST expects parentheses for 'in' filters
+                itemDeleteQuery.not('id', 'in', `(${incomingItemIds.join(',')})`);
+            }
+
+            const { error: itemDelError } = await itemDeleteQuery;
+            if (itemDelError) console.error('Error deleting removed items:', itemDelError);
+        }
+
+        // 1b. Delete modules that are no longer in the curriculum
+        const moduleDeleteQuery = supabaseAdmin
             .from('course_modules')
             .delete()
             .eq('course_id', courseId);
-
-        if (deleteError) {
-            console.error('Error deleting existing modules:', deleteError);
-            return NextResponse.json({ error: 'Failed to clear existing curriculum', details: deleteError.message }, { status: 500 });
+        
+        if (incomingModuleIds.length > 0) {
+            moduleDeleteQuery.not('id', 'in', `(${incomingModuleIds.join(',')})`);
         }
 
-        // 2. Insert new modules and items
-        console.log(`Inserting ${modules.length} modules...`);
+        const { error: modDelError } = await moduleDeleteQuery;
+        if (modDelError) console.error('Error deleting removed modules:', modDelError);
+
+
+        // 2. Insert/Update modules and items
+        console.log(`Upserting ${modules.length} modules...`);
 
         for (const [mIndex, module] of modules.entries()) {
             console.log(`Processing module ${mIndex + 1}: ${module.title}`);
-            // Create Module
-            const { data: newModule, error: moduleError } = await supabaseAdmin
+            
+            // Prepare Module Payload
+            const modulePayload: any = {
+                course_id: courseId,
+                title: module.title || 'Untitled Module',
+                summary: module.summary || '',
+                order_index: mIndex
+            };
+
+            // If it's a valid UUID, include it for upsert
+            if (module.id && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(module.id)) {
+                modulePayload.id = module.id;
+            }
+
+            // Upsert Module
+            const { data: upsertedModule, error: moduleError } = await supabaseAdmin
                 .from('course_modules')
-                .insert({
-                    course_id: courseId,
-                    title: module.title || 'Untitled Module',
-                    summary: module.summary || '',
-                    order_index: mIndex
-                })
+                .upsert(modulePayload)
                 .select()
                 .single();
 
-            if (moduleError || !newModule) {
-                console.error(`Error creating module ${module.title}:`, moduleError);
-                throw new Error(`Failed to create module: ${module.title}`);
+            if (moduleError || !upsertedModule) {
+                console.error(`Error upserting module ${module.title}:`, moduleError);
+                throw new Error(`Failed to save module: ${module.title}`);
             }
 
-            const moduleId = newModule.id;
+            const moduleId = upsertedModule.id;
             const lessons = module.lessons || [];
-            console.log(`  - Inserting ${lessons.length} items for module ${moduleId}`);
+            console.log(`  - Upserting ${lessons.length} items for module ${moduleId}`);
 
             // Process Items
             if (lessons.length > 0) {
@@ -226,23 +279,31 @@ export async function POST(
                         }
                     }
 
-                    // Insert Item
+                    // Prepare Item Payload
+                    const itemPayload: any = {
+                        module_id: moduleId,
+                        type: type,
+                        title: item.title || item.name || 'Untitled',
+                        summary: item.summary || item.description || '',
+                        content: item.content || '',
+                        video_url: item.videoPreview || item.video_url || '',
+                        order_index: iIndex,
+                        duration: duration,
+                        metadata: metadata
+                    };
+
+                    // If it's a valid UUID, include it for upsert
+                    if (item.id && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(item.id)) {
+                        itemPayload.id = item.id;
+                    }
+
+                    // Upsert Item
                     const { error: itemError } = await supabaseAdmin
                         .from('module_items')
-                        .insert({
-                            module_id: moduleId,
-                            type: type,
-                            title: item.title || item.name || 'Untitled',
-                            summary: item.summary || item.description || '',
-                            content: item.content || '',
-                            video_url: item.videoPreview || item.video_url || '', // Save video_url if available
-                            order_index: iIndex,
-                            duration: duration,
-                            metadata: metadata
-                        });
+                        .upsert(itemPayload);
 
                     if (itemError) {
-                        console.error('Error inserting module item:', itemError);
+                        console.error('Error upserting module item:', itemError);
                         throw itemError;
                     }
                 }

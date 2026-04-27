@@ -191,6 +191,7 @@ export default function CourseBuilderPageClient({ courseId, courseTitle, initial
 
             // 3. Transform to API format
             const modules = processedTopics.map((topic, index) => ({
+                id: topic.id,
                 title: topic.title,
                 summary: topic.summary || '',
                 lessons: topic.lessons.map((lesson: any) => {

@@ -38,11 +38,7 @@ export async function POST(req: NextRequest) {
             .eq('student_id', user.id)
             .eq('quiz_id', quizId);
 
-        if (cohortId && cohortId !== 'null' && cohortId !== 'undefined') {
-            queryCount = queryCount.eq('cohort_id', cohortId);
-        } else {
-            queryCount = queryCount.is('cohort_id', null);
-        }
+
 
         const { count: attemptsCount } = await queryCount;
 
@@ -54,11 +50,7 @@ export async function POST(req: NextRequest) {
             .eq('quiz_id', quizId)
             .eq('passed', true);
 
-        if (cohortId && cohortId !== 'null' && cohortId !== 'undefined') {
-            queryPassed = queryPassed.eq('cohort_id', cohortId);
-        } else {
-            queryPassed = queryPassed.is('cohort_id', null);
-        }
+
 
         const { data: passedSub } = await queryPassed.maybeSingle();
 

@@ -1,11 +1,11 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import DashboardLayout from "@/components/student/DashboardLayout";
 import {
     ChevronLeft, Play, FileText, CheckSquare, Video, ChevronDown, ChevronUp, ChevronRight,
-    Download, ExternalLink, Search, BookOpen, Clock, Calendar, ArrowRight, X as XIcon, CheckCircle2, Circle, Lock
+    Download, ExternalLink, Search, BookOpen, Clock, Calendar, ArrowRight, X as XIcon, CheckCircle2, Circle, Lock, List
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -98,11 +98,15 @@ interface StudentClassroomClientProps {
 export default function StudentClassroomClient({ course, exitHref, cohortId }: StudentClassroomClientProps) {
     const router = useRouter();
     const [selectedItem, setSelectedItem] = useState<any>(null);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
     const [searchTerm, setSearchTerm] = useState("");
     const [completedItems, setCompletedItems] = useState<Set<string>>(new Set());
     const [isQuizActive, setIsQuizActive] = useState(false);
+    const [allProgress, setAllProgress] = useState<any[]>([]);
+    const [videoProgress, setVideoProgress] = useState<{ [key: string]: { last: number, max: number, duration: number } }>({});
     const { showToast } = useToast();
+    const lastSyncTime = useRef<number>(0);
 
     // Initialize with first item
     useEffect(() => {
@@ -131,8 +135,22 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
 
                 if (res.ok) {
                     const data = await res.json();
+                    setAllProgress(data);
                     const completed = new Set<string>(data.filter((p: any) => p.is_completed).map((p: any) => p.item_id));
                     setCompletedItems(completed);
+                    
+                    // Initialize video progress
+                    const vProg: any = {};
+                    data.forEach((p: any) => {
+                        if (p.last_watched_second !== undefined) {
+                            vProg[p.item_id] = { 
+                                last: p.last_watched_second || 0, 
+                                max: p.max_watched_second || 0,
+                                duration: 0
+                            };
+                        }
+                    });
+                    setVideoProgress(vProg);
                 }
             } catch (error) {
                 console.error('Error fetching progress:', error);
@@ -142,16 +160,19 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
         fetchProgress();
     }, [course.id, cohortId]);
 
-    const toggleComplete = async (itemId: string, currentStatus: boolean) => {
-        const newStatus = !currentStatus;
+    const toggleComplete = async (itemId: string, currentStatus: boolean, trackingData?: { last: number, max: number }) => {
+        // Fix: If it's tracking data (auto-sync), we should NEVER unmark as completed
+        const newStatus = trackingData ? (currentStatus || false) : !currentStatus;
 
-        // Optimistic update
-        setCompletedItems(prev => {
-            const next = new Set(prev);
-            if (newStatus) next.add(itemId);
-            else next.delete(itemId);
-            return next;
-        });
+        // Optimistic update if manually toggled
+        if (!trackingData) {
+            setCompletedItems(prev => {
+                const next = new Set(prev);
+                if (newStatus) next.add(itemId);
+                else next.delete(itemId);
+                return next;
+            });
+        }
 
         try {
             const { data: { session } } = await supabase.auth.getSession();
@@ -167,24 +188,28 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
                     courseId: course.id,
                     cohortId: cohortId || null,
                     itemId,
-                    isCompleted: newStatus
+                    isCompleted: newStatus,
+                    lastWatchedSecond: trackingData?.last,
+                    maxWatchedSecond: trackingData?.max
                 })
             });
 
             if (!res.ok) throw new Error('Failed to update progress');
-
-            if (newStatus) showToast('Lesson marked as completed!', 'success');
+            
+            if (!trackingData && newStatus) showToast('Lesson marked as completed!', 'success');
 
         } catch (error) {
             console.error(error);
-            showToast('Failed to save progress', 'error');
-            // Revert
-            setCompletedItems(prev => {
-                const next = new Set(prev);
-                if (currentStatus) next.add(itemId);
-                else next.delete(itemId);
-                return next;
-            });
+            if (!trackingData) {
+                showToast('Failed to save progress', 'error');
+                // Revert
+                setCompletedItems(prev => {
+                    const next = new Set(prev);
+                    if (currentStatus) next.add(itemId);
+                    else next.delete(itemId);
+                    return next;
+                });
+            }
         }
     };
 
@@ -220,62 +245,154 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
         }
     };
 
-    const renderLesson = (lesson: any) => (
-        <div className="flex-1 overflow-y-auto">
-            {/* Video Player */}
-            <div className="w-full aspect-video bg-black relative shadow-2xl overflow-hidden group">
-                {lesson.video_url || lesson.videoPreview ? (
-                    <video
-                        key={lesson.id}
-                        src={lesson.video_url || lesson.videoPreview}
-                        poster={lesson.coverPreview}
-                        controls
-                        className="w-full h-full object-contain"
-                        onEnded={() => toggleComplete(lesson.id, completedItems.has(lesson.id))}
-                    />
-                ) : (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-white/40 space-y-4 bg-slate-900">
-                        <Play size={64} className="opacity-20 translate-y-2 group-hover:translate-y-0 transition-transform duration-500" />
-                        <p className="font-bold text-lg">No video for this lesson</p>
+    const handleTimeUpdate = (e: any, lessonId: string) => {
+        const video = e.target;
+        const currentTime = Math.floor(video.currentTime);
+        const duration = video.duration;
+        if (!duration) return;
+
+        setVideoProgress(prev => {
+            const current = prev[lessonId] || { last: 0, max: 0, duration: 0 };
+            
+            // Update max only if they are watching naturally
+            // We allow a larger buffer (10s) for natural playback/frame drops
+            let newMax = current.max;
+            if (currentTime > current.max && currentTime <= current.max + 10) {
+                newMax = currentTime;
+            } else if (video.ended) {
+                newMax = duration;
+            }
+
+            const updated = { last: currentTime, max: newMax, duration };
+            
+            // Auto-complete at 90%
+            if (!completedItems.has(lessonId) && (newMax / duration) >= 0.9) {
+                toggleComplete(lessonId, true, updated); // FIX: Should be true to mark as complete
+                setCompletedItems(p => new Set(p).add(lessonId));
+            }
+
+            // Sync to DB every 15 seconds
+            const now = Date.now();
+            if (now - lastSyncTime.current > 15000) {
+                lastSyncTime.current = now;
+                toggleComplete(lessonId, completedItems.has(lessonId), updated);
+            }
+
+            return { ...prev, [lessonId]: updated };
+        });
+    };
+
+    const handleSeeked = (e: any, lessonId: string) => {
+        const video = e.target;
+        const progress = videoProgress[lessonId];
+        // Allow a 5-second buffer for natural seeking/browser behavior
+        if (progress && video.currentTime > progress.max + 5) {
+            video.currentTime = progress.max;
+            showToast("You can only skip ahead to parts you've already watched.", "warning");
+        }
+    };
+
+    const handleLoadedMetadata = (e: any, lessonId: string) => {
+        const video = e.target;
+        const savedProgress = videoProgress[lessonId];
+        if (savedProgress && savedProgress.last > 0) {
+            video.currentTime = savedProgress.last;
+        }
+    };
+    const renderLesson = (lesson: any) => {
+        const progress = videoProgress[lesson.id] || { last: 0, max: 0, duration: 0 };
+        const isComplete = completedItems.has(lesson.id);
+        const unlockedPercentage = progress.duration ? (progress.max / progress.duration) * 100 : 0;
+        
+        return (
+            <div className="flex-1 overflow-y-auto">
+                {/* Video Player */}
+                <div className="w-full aspect-video bg-black relative shadow-2xl overflow-hidden group">
+                    {lesson.video_url || lesson.videoPreview ? (
+                        <video
+                            key={lesson.id}
+                            src={lesson.video_url || lesson.videoPreview}
+                            poster={lesson.coverPreview}
+                            controls
+                            controlsList="nodownload"
+                            disablePictureInPicture
+                            onContextMenu={(e) => e.preventDefault()}
+                            className="w-full h-full object-contain"
+                            onTimeUpdate={(e) => handleTimeUpdate(e, lesson.id)}
+                            onLoadedMetadata={(e) => handleLoadedMetadata(e, lesson.id)}
+                            onSeeked={(e) => handleSeeked(e, lesson.id)}
+                            onEnded={() => toggleComplete(lesson.id, isComplete, { ...progress, last: progress.max })}
+                        />
+                    ) : (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-white/40 space-y-4 bg-slate-900">
+                            <Play size={64} className="opacity-20 translate-y-2 group-hover:translate-y-0 transition-transform duration-500" />
+                            <p className="font-bold text-lg">No video for this lesson</p>
+                        </div>
+                    )}
+                </div>
+
+                {/* Visual Progress Timeline */}
+                {!isComplete && progress.duration > 0 && (
+                    <div className="w-full h-2 bg-gray-100 relative group/timeline cursor-help" title="Your unlocked progress">
+                        <div 
+                            className="absolute inset-y-0 left-0 bg-primary/30 transition-all duration-500"
+                            style={{ width: `${unlockedPercentage}%` }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/timeline:opacity-100 transition-opacity">
+                            <span className="text-[9px] font-black text-primary bg-white px-2 py-0.5 rounded-full shadow-sm border border-primary/10">
+                                UNLOCKED AREA
+                            </span>
+                        </div>
                     </div>
                 )}
-            </div>
 
-            <div className="max-w-4xl mx-auto p-8 lg:p-12 space-y-10">
-                <div className="flex items-center justify-between">
-                    <div className="space-y-6">
-                        <div className="flex items-center gap-3">
-                            <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-blue-100">
-                                Lesson
-                            </span>
-                            {lesson.duration && (
-                                <span className="flex items-center gap-1.5 text-gray-400 text-xs font-bold">
-                                    <Clock size={14} />
-                                    {lesson.duration} mins
+                <div className="max-w-4xl mx-auto p-8 lg:p-12 space-y-10">
+                    <div className="flex items-center justify-between">
+                        <div className="space-y-6">
+                            <div className="flex items-center gap-3">
+                                <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-blue-100">
+                                    Lesson
+                                </span>
+                                {lesson.duration && (
+                                    <span className="flex items-center gap-1.5 text-gray-400 text-xs font-bold">
+                                        <Clock size={14} />
+                                        {lesson.duration} mins
+                                    </span>
+                                )}
+                            </div>
+                            <h1 className="text-4xl font-black text-gray-900 tracking-tight leading-tight">{lesson.title}</h1>
+                        </div>
+
+                        <div className="flex flex-col items-end gap-2">
+                            <button
+                                onClick={() => toggleComplete(lesson.id, isComplete)}
+                                disabled={!isComplete && (!progress.duration || progress.max < progress.duration * 0.9)}
+                                className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all ${isComplete
+                                    ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                    : progress.max > 0 
+                                        ? 'bg-primary/10 text-primary hover:bg-primary/20'
+                                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                    } ${(!isComplete && (!progress.duration || progress.max < progress.duration * 0.9)) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                                {isComplete ? (
+                                    <>
+                                        <CheckCircle2 size={20} /> Completed
+                                    </>
+                                ) : (
+                                    <>
+                                        <Circle size={20} /> {progress.max > 0 ? 'Watching...' : 'Mark Complete'}
+                                    </>
+                                )}
+                            </button>
+                            {!isComplete && progress.max > 0 && (
+                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
+                                    {(progress.duration && progress.max < (progress.duration * 0.9))
+                                        ? `Watched ${Math.round((progress.max / progress.duration) * 100)}% (Need 90%)` 
+                                        : progress.max >= (progress.duration * 0.9) ? 'Ready to complete!' : 'Started watching...'}
                                 </span>
                             )}
                         </div>
-                        <h1 className="text-4xl font-black text-gray-900 tracking-tight leading-tight">{lesson.title}</h1>
                     </div>
-
-                    <button
-                        onClick={() => toggleComplete(lesson.id, completedItems.has(lesson.id))}
-                        className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all ${completedItems.has(lesson.id)
-                            ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                            }`}
-                    >
-                        {completedItems.has(lesson.id) ? (
-                            <>
-                                <CheckCircle2 size={20} /> Completed
-                            </>
-                        ) : (
-                            <>
-                                <Circle size={20} /> Mark Complete
-                            </>
-                        )}
-                    </button>
-                </div>
 
                 <div className="prose prose-purple max-w-none">
                     <p className="text-gray-600 text-lg leading-relaxed font-medium">
@@ -327,7 +444,8 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
                 )}
             </div>
         </div>
-    );
+        );
+    };
 
     const renderLiveClass = (liveClass: any) => {
         const isPast = new Date(`${liveClass.date}T${liveClass.time}`).getTime() < new Date().getTime();
@@ -518,16 +636,64 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
 
     return (
         <DashboardLayout hideSidebar={true} hideHeader={true}>
-            <div className="flex h-screen overflow-hidden bg-white">
+            <div className="flex flex-col lg:flex-row h-screen overflow-hidden bg-white">
+                {/* Mobile Header */}
+                <div className="lg:hidden flex items-center justify-between p-4 bg-white border-b border-gray-100 sticky top-0 z-30 shadow-sm">
+                    <button
+                        onClick={() => setIsSidebarOpen(true)}
+                        className="flex items-center gap-2 text-primary font-bold px-3 py-2 bg-purple-50 rounded-xl hover:bg-purple-100 transition-colors"
+                    >
+                        <List size={20} />
+                        <span className="text-sm">Curriculum</span>
+                    </button>
+                    <div className="flex-1 min-w-0 px-4 text-center">
+                        <h2 className="text-xs font-black text-gray-400 uppercase tracking-widest truncate">{course.title}</h2>
+                        <h3 className="text-sm font-bold text-gray-900 truncate">{selectedItem?.title || "Classroom"}</h3>
+                    </div>
+                    <button
+                        onClick={() => {
+                            if (isQuizActive) {
+                                showToast("You cannot leave while the quiz is active.", "warning");
+                            } else {
+                                router.push(exitHref || `/student/courses/${course.id}`);
+                            }
+                        }}
+                        className="p-2 text-gray-400 hover:text-rose-500 transition-colors"
+                    >
+                        <XIcon size={24} />
+                    </button>
+                </div>
+
+                {/* Left Sidebar Backdrop (Mobile) */}
+                {isSidebarOpen && (
+                    <div
+                        className="lg:hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] transition-all duration-300"
+                        onClick={() => setIsSidebarOpen(false)}
+                    />
+                )}
+
                 {/* Left Sidebar */}
-                <div className="w-96 border-r border-gray-100 flex flex-col bg-gray-50/20 sticky top-0 h-screen overflow-hidden">
+                <div className={`
+                    fixed lg:relative inset-y-0 left-0 z-[70] lg:z-0
+                    w-[85vw] sm:w-96 lg:w-96
+                    bg-white border-r border-gray-100 flex flex-col
+                    transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0
+                    transition-transform duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]
+                    h-full overflow-hidden shadow-2xl lg:shadow-none
+                `}>
                     <div className="p-8 border-b border-gray-100 bg-white space-y-6">
                         <div className="flex items-center justify-between">
                             <div className="flex flex-col">
                                 <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mb-1">Learning Portal</span>
                                 <h2 className="font-black text-gray-900 text-xl tracking-tight">Curriculum</h2>
                             </div>
-                            <button 
+                            <button
+                                onClick={() => setIsSidebarOpen(false)}
+                                className="lg:hidden w-10 h-10 rounded-2xl bg-gray-50 text-gray-400 flex items-center justify-center"
+                            >
+                                <ChevronLeft size={20} />
+                            </button>
+                            <button
                                 onClick={(e) => {
                                     if (isQuizActive) {
                                         showToast("You cannot leave while the quiz is active.", "warning");
@@ -535,48 +701,52 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
                                         router.push(exitHref || `/student/courses/${course.id}`);
                                     }
                                 }}
-                                className="w-10 h-10 rounded-2xl bg-gray-50 hover:bg-rose-50 text-gray-400 hover:text-rose-500 flex items-center justify-center transition-all group"
+                                className="hidden lg:flex w-10 h-10 rounded-2xl bg-gray-50 hover:bg-rose-50 text-gray-400 hover:text-rose-500 items-center justify-center transition-all group"
                             >
                                 <XIcon size={20} className="group-hover:rotate-90 transition-transform duration-300" />
                             </button>
                         </div>
                         <div className="relative group">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
-                            <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-transparent focus:bg-white rounded-[1.5rem] text-sm font-bold outline-none" />
+                            <input type="text" placeholder="Search curriculum..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-transparent focus:bg-white rounded-[1.5rem] text-sm font-bold outline-none ring-primary/10 focus:ring-4 transition-all" />
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
                         {course.curriculum?.map((module: any, idx: number) => (
                             <div key={module.id} className="space-y-2">
-                                <button onClick={() => toggleModule(module.id)} className={`w-full flex items-center justify-between p-4 rounded-3xl transition-all ${expandedModules.has(module.id) ? 'bg-white shadow-xl' : 'hover:bg-white'}`}>
+                                <button onClick={() => toggleModule(module.id)} className={`w-full flex items-center justify-between p-4 rounded-3xl transition-all ${expandedModules.has(module.id) ? 'bg-white shadow-xl shadow-purple-900/5' : 'hover:bg-white'}`}>
                                     <div className="flex items-center gap-4 min-w-0">
                                         <div className={`w-10 h-10 rounded-2xl flex-shrink-0 flex items-center justify-center text-xs font-black ${expandedModules.has(module.id) ? 'bg-primary text-white' : 'bg-gray-100 text-gray-400'}`}>{(idx + 1).toString().padStart(2, '0')}</div>
                                         <span className="text-sm font-black text-gray-900 truncate">{module.title}</span>
                                     </div>
-                                    {expandedModules.has(module.id) ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                                    <div className={`transition-transform duration-300 ${expandedModules.has(module.id) ? 'rotate-0' : 'rotate-180'}`}>
+                                        <ChevronDown size={20} className="text-gray-400" />
+                                    </div>
                                 </button>
                                 {expandedModules.has(module.id) && (
-                                    <div className="pl-4 space-y-2 border-l border-gray-100 ml-5 pt-2">
+                                    <div className="pl-4 space-y-2 border-l-2 border-purple-50 ml-5 pt-2 animate-in slide-in-from-top-2 duration-300">
                                         {module.items?.filter((i: any) => i.title.toLowerCase().includes(searchTerm.toLowerCase())).map((item: any) => {
                                             const locked = isItemLocked(item);
+                                            const isSelected = selectedItem?.id === item.id;
                                             return (
-                                                <button 
-                                                    key={item.id} 
+                                                <button
+                                                    key={item.id}
                                                     onClick={() => {
                                                         if (isQuizActive) {
                                                             showToast("You cannot leave the quiz until you submit or the timer runs out.", "warning");
                                                             return;
                                                         }
                                                         setSelectedItem(item);
-                                                    }} 
-                                                    className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all ${selectedItem?.id === item.id ? 'bg-primary text-white shadow-xl' : 'hover:bg-white text-gray-600'}`}
+                                                        setIsSidebarOpen(false); // Auto-close on mobile
+                                                    }}
+                                                    className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all ${isSelected ? 'bg-primary text-white shadow-xl shadow-purple-900/20' : 'hover:bg-white text-gray-600'}`}
                                                 >
                                                     <div className="flex items-center gap-3 min-w-0">
                                                         {getItemIcon(item.type, locked)}
-                                                        <span className="text-xs font-black truncate">{item.title}</span>
+                                                        <span className="text-xs font-bold truncate">{item.title}</span>
                                                     </div>
-                                                    {completedItems.has(item.id) && !locked && <CheckCircle2 size={16} className="text-emerald-500" />}
+                                                    {completedItems.has(item.id) && !locked && <CheckCircle2 size={16} className={isSelected ? "text-white" : "text-emerald-500"} />}
                                                 </button>
                                             )
                                         })}
@@ -588,8 +758,26 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
                 </div>
 
                 {/* Main Content */}
-                <div className="flex-1 flex flex-col min-w-0 bg-white">
-                    {selectedItem ? renderContent() : <div className="flex-1 flex items-center justify-center">Select a lesson</div>}
+                <div className="flex-1 flex flex-col min-w-0 bg-white relative overflow-hidden h-full">
+                    {selectedItem ? (
+                        renderContent()
+                    ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center p-12 text-center space-y-6">
+                            <div className="w-24 h-24 bg-purple-50 rounded-[2.5rem] flex items-center justify-center text-primary animate-bounce">
+                                <BookOpen size={48} />
+                            </div>
+                            <div className="space-y-2">
+                                <h2 className="text-2xl font-black text-gray-900 tracking-tight">Welcome to the Classroom</h2>
+                                <p className="text-gray-500 max-w-sm mx-auto font-medium">Select a lesson from the curriculum to start your learning journey.</p>
+                            </div>
+                            <button
+                                onClick={() => setIsSidebarOpen(true)}
+                                className="lg:hidden px-8 py-4 bg-primary text-white rounded-2xl font-bold shadow-xl shadow-purple-200"
+                            >
+                                View Curriculum
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
         </DashboardLayout>

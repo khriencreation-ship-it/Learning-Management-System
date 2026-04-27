@@ -14,12 +14,12 @@ export async function GET(request: Request) {
 
         if (userError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-        // Lazy Cleanup: Delete notifications older than 24 hours
-        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        // Lazy Cleanup: Delete notifications older than 7 days
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
         await supabaseAdmin
             .from('notifications')
             .delete()
-            .lt('created_at', oneDayAgo)
+            .lt('created_at', sevenDaysAgo)
             .eq('user_id', user.id); // Only delete for this user or global? 
         // Better to delete per user access to distribute load or global if efficient index.
         // Let's stick to safe user-scoped delete or global if backend admin allows.

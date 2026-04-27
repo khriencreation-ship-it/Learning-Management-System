@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/admin/DashboardLayout';
-import { ArrowLeft, Play, BookOpen, FileText, CheckSquare, List, Plus, Clock, Users, Edit, Globe, Lock as LockIcon, Eye, EyeOff, Video, Layers, Trash2, AlertTriangle, Bell, MessageSquare, Send, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Play, BookOpen, FileText, CheckSquare, List, Plus, Clock, Edit, Globe, Lock as LockIcon, Eye, EyeOff, Video, Layers, Trash2, AlertTriangle, Bell, MessageSquare, Send } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/useToast';
 import Toast from '@/components/ui/Toast';
@@ -12,14 +12,10 @@ import CurriculumModule from './CurriculumModule';
 
 interface CourseDetailsClientProps {
     course: any;
-    currentPage: number;
-    pageSize: number;
 }
 
 export default function CourseDetailsClient({ 
     course: initialCourse,
-    currentPage,
-    pageSize
 }: CourseDetailsClientProps) {
     const router = useRouter();
     const [course, setCourse] = useState(initialCourse);
@@ -53,9 +49,6 @@ export default function CourseDetailsClient({
         setCourse(initialCourse);
     }, [initialCourse]);
 
-    const handlePageChange = (page: number) => {
-        router.push(`/admin/courses/${course.id}?page=${page}`);
-    };
 
     const fetchAnnouncements = async () => {
         try {
@@ -188,6 +181,9 @@ export default function CourseDetailsClient({
                                     <video
                                         src={course.video_url}
                                         controls
+                                        controlsList="nodownload"
+                                        disablePictureInPicture
+                                        onContextMenu={(e) => e.preventDefault()}
                                         autoPlay
                                         className="w-full h-full object-cover"
                                         onEnded={() => setIsPlaying(false)}
@@ -466,116 +462,6 @@ export default function CourseDetailsClient({
                                             <Plus size={18} />
                                             Open Builder
                                         </Link>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* BOTTOM SECTION: Enrolled Students */}
-                    <div className="pt-12 border-t border-gray-100">
-                        <div className="space-y-6">
-                            <div className="flex items-center justify-between">
-                                <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                                    <Users className="text-emerald-600" size={24} />
-                                    Enrolled Students
-                                </h3>
-                                <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold border border-emerald-100">
-                                    {course.total_enrollments_count || 0} Total
-                                </span>
-                            </div>
-
-                            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left">
-                                        <thead>
-                                            <tr className="bg-gray-50 border-b border-gray-200">
-                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Student</th>
-                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Identifier / ID</th>
-                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-100">
-                                            {course.course_enrollments && course.course_enrollments.length > 0 ? (
-                                                course.course_enrollments.map((ce: any) => (
-                                                    <tr
-                                                        key={ce.student_id}
-                                                        onClick={() => router.push(`/admin/students/${ce.student?.id || ce.student_id}`)}
-                                                        className="hover:bg-gray-50/50 transition-colors group cursor-pointer"
-                                                    >
-                                                        <td className="px-6 py-4">
-                                                            <div className="flex items-center gap-3">
-                                                                <div className="w-9 h-9 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-sm border border-emerald-100 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                                                                    {ce.student?.full_name?.charAt(0) || 'S'}
-                                                                </div>
-                                                                <span className="font-semibold text-gray-900 group-hover:text-emerald-700 transition-colors">
-                                                                    {ce.student?.full_name || "Unknown"}
-                                                                </span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-6 py-4 text-sm text-gray-500 font-medium break-all">
-                                                            {ce.student?.identifier || ce.student_id}
-                                                        </td>
-                                                        <td className="px-6 py-4 text-right">
-                                                            <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-lg text-[10px] font-bold uppercase tracking-tight">Enrolled</span>
-                                                        </td>
-                                                    </tr>
-                                                ))
-                                            ) : (
-                                                <tr>
-                                                    <td colSpan={3} className="px-6 py-12 text-center text-gray-400 italic bg-gray-50/30">
-                                                        No students enrolled in this course yet.
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                {Math.ceil((course.total_enrollments_count || 0) / pageSize) > 1 && (
-                                    <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <p className="text-sm text-gray-500">
-                                                Page <span className="font-bold text-gray-900">{currentPage}</span> of <span className="font-bold text-gray-900">{Math.ceil((course.total_enrollments_count || 0) / pageSize)}</span>
-                                            </p>
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                            <button
-                                                onClick={() => handlePageChange(currentPage - 1)}
-                                                disabled={currentPage === 1}
-                                                className="p-2 text-gray-500 hover:text-gray-900 hover:bg-white rounded-lg transition-all disabled:opacity-30 disabled:hover:bg-transparent"
-                                            >
-                                                <ChevronLeft size={18} />
-                                            </button>
-                                            
-                                            {Array.from({ length: Math.ceil((course.total_enrollments_count || 0) / pageSize) }, (_, i) => i + 1)
-                                                .filter(p => p === 1 || p === Math.ceil((course.total_enrollments_count || 0) / pageSize) || Math.abs(p - currentPage) <= 1)
-                                                .map((p, i, arr) => (
-                                                    <div key={p} className="flex items-center">
-                                                        {i > 0 && arr[i - 1] !== p - 1 && (
-                                                            <span className="px-2 text-gray-400">...</span>
-                                                        )}
-                                                        <button
-                                                            onClick={() => handlePageChange(p)}
-                                                            className={`w-9 h-9 rounded-lg text-sm font-bold transition-all ${
-                                                                currentPage === p
-                                                                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200'
-                                                                    : 'text-gray-500 hover:text-gray-900 hover:bg-white'
-                                                            }`}
-                                                        >
-                                                            {p}
-                                                        </button>
-                                                    </div>
-                                                ))
-                                            }
-
-                                            <button
-                                                onClick={() => handlePageChange(currentPage + 1)}
-                                                disabled={currentPage === Math.ceil((course.total_enrollments_count || 0) / pageSize)}
-                                                className="p-2 text-gray-500 hover:text-gray-900 hover:bg-white rounded-lg transition-all disabled:opacity-30 disabled:hover:bg-transparent"
-                                            >
-                                                <ChevronRight size={18} />
-                                            </button>
-                                        </div>
                                     </div>
                                 )}
                             </div>

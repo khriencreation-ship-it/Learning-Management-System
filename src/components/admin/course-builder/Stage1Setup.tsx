@@ -117,6 +117,9 @@ export default function Stage1Setup({
                         <video
                             src={videoPreview}
                             controls
+                            controlsList="nodownload"
+                            disablePictureInPicture
+                            onContextMenu={(e) => e.preventDefault()}
                             className="w-full max-h-64 rounded-lg bg-black"
                         />
                         <div className="flex gap-2">

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { sendNotification } from '@/lib/notifications';
 
 export async function POST(
     request: Request,
@@ -43,7 +44,25 @@ export async function POST(
             .insert(inserts);
 
         if (error) throw error;
-
+        
+        // Send notifications
+        try {
+            const { data: cohort } = await supabaseAdmin.from('cohorts').select('name').eq('id', id).single();
+            const cohortName = cohort?.name || 'a new cohort';
+            
+            const notificationPromises = newStudentIds.map(sid => 
+                sendNotification(
+                    sid,
+                    'New Cohort Assignment',
+                    `You have been added to ${cohortName}. Check your dashboard for new courses.`,
+                    'enrollment',
+                    `/student/cohorts/${id}`
+                )
+            );
+            await Promise.all(notificationPromises);
+        } catch (nError) {
+            console.error('Error sending cohort notifications:', nError);
+        }
 
         return NextResponse.json({ success: true, message: 'Students enrolled in cohort successfully' });
     } catch (error: any) {

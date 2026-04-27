@@ -12,6 +12,7 @@ import { LayoutGrid, BookOpen, X, Calendar, User as UserIcon, Layers } from 'luc
 import { supabase } from '@/lib/supabase';
 import { User } from '@/lib/authClient';
 import ActivitiesAndChallenges from '@/components/student/ActivitiesAndChallenges';
+import NotificationScanner from '@/components/student/notifications/NotificationScanner';
 
 export default function StudentDashboardClient({ user }: { user: User }) {
     const router = useRouter();
@@ -88,6 +89,7 @@ export default function StudentDashboardClient({ user }: { user: User }) {
 
     return (
         <DashboardLayout isLoading={loading}>
+            <NotificationScanner />
             <div className="max-w-6xl mx-auto">
                 <div className="mb-8 flex flex-col md:flex-row md:items-start justify-between gap-4">
                     <div>

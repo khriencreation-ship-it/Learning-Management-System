@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { sendNotification } from '@/lib/notifications';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -62,8 +63,25 @@ export async function POST(request: Request) {
             .from('course_enrollments')
             .upsert(inserts, { onConflict: 'course_id, student_id, cohort_id' });
 
-        if (error) {
-            throw error;
+        if (error) throw error;
+
+        // Send notifications
+        try {
+            const { data: course } = await supabaseAdmin.from('courses').select('title').eq('id', courseId).single();
+            const courseTitle = course?.title || 'a new course';
+            
+            const notificationPromises = studentIds.map((sid: string) => 
+                sendNotification(
+                    sid,
+                    'New Course Enrollment',
+                    `You have been enrolled in ${courseTitle}. You can now access the course material.`,
+                    'enrollment',
+                    `/student/courses/${courseId}?cohortId=${cohortId}`
+                )
+            );
+            await Promise.all(notificationPromises);
+        } catch (nError) {
+            console.error('Error sending course enrollment notifications:', nError);
         }
 
         return NextResponse.json({ success: true, message: 'Students enrolled in course successfully' });

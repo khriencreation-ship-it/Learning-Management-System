@@ -26,13 +26,7 @@ export async function POST(req: NextRequest) {
             .eq('student_id', user.id)
             .eq('item_id', assignmentId);
 
-        if (cohortId && cohortId !== 'null' && cohortId !== 'undefined') {
-            query = query.eq('cohort_id', cohortId);
-        } else {
-            query = query.is('cohort_id', null);
-        }
-
-        const { data: existing } = await query.maybeSingle();
+        const { data: existing } = await query.order('created_at', { ascending: false }).limit(1).maybeSingle();
 
         let data, error;
         const submissionPayload = {
@@ -86,7 +80,7 @@ export async function POST(req: NextRequest) {
                 is_completed: true,
                 completed_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
-            }, { onConflict: 'student_id, course_id, item_id, cohort_id' });
+            }, { onConflict: 'student_id, item_id, cohort_id' });
 
         return NextResponse.json(data);
 

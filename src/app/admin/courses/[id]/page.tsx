@@ -6,12 +6,9 @@ import { unstable_noStore as noStore } from 'next/cache';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-async function getCourse(id: string, page: number = 1, pageSize: number = 25) {
+async function getCourse(id: string) {
     noStore();
     try {
-        const from = (page - 1) * pageSize;
-        const to = from + pageSize - 1;
-
         // Fetch course details
         const { data: courseData, error: courseError } = await supabaseAdmin
             .from('courses')
@@ -33,27 +30,6 @@ async function getCourse(id: string, page: number = 1, pageSize: number = 25) {
             console.error("Error fetching course data:", courseError);
             return null;
         }
-
-        // Fetch paginated enrollments
-        const { data: enrollments, error: enrollError, count: totalCount } = await supabaseAdmin
-            .from('course_enrollments')
-            .select(`
-                student_id,
-                student:profiles (id, full_name, identifier)
-            `, { count: 'exact' })
-            .eq('course_id', id)
-            .range(from, to);
-
-        if (enrollError) {
-            console.error("Error fetching enrollments:", enrollError);
-        }
-
-        // Deduplicate enrollments by student_id (handle multi-cohort enrollments if any)
-        const uniqueEnrollments = Array.from(
-            new Map(
-                (enrollments || []).map((e: any) => [e.student_id, e])
-            ).values()
-        );
 
         // Sort modules and items by order_index
         const sortedModules = (courseData.course_modules || [])
@@ -87,8 +63,6 @@ async function getCourse(id: string, page: number = 1, pageSize: number = 25) {
         // Format dates on the server side
         const formattedCourse = {
             ...courseData,
-            course_enrollments: uniqueEnrollments,
-            total_enrollments_count: totalCount || 0,
             status: courseData.status || 'draft',
             publishedAt: courseData.published_at ? new Date(courseData.published_at).toLocaleDateString('en-US', {
                 month: 'short', day: '2-digit', year: 'numeric'
@@ -110,12 +84,9 @@ async function getCourse(id: string, page: number = 1, pageSize: number = 25) {
 
 export default async function CourseDetailsPage(props: any) {
     const params = await props.params;
-    const searchParams = await props.searchParams;
     const { id } = params;
-    const page = parseInt(searchParams.page as string) || 1;
-    const pageSize = 25;
 
-    const course = await getCourse(id, page, pageSize);
+    const course = await getCourse(id);
 
     if (!course) {
         notFound();
@@ -124,8 +95,6 @@ export default async function CourseDetailsPage(props: any) {
     return (
         <CourseDetailsClient 
             course={course} 
-            currentPage={page} 
-            pageSize={pageSize} 
         />
     );
 }

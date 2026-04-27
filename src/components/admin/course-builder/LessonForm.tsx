@@ -147,6 +147,9 @@ export default function LessonForm({ onSave, onCancel, initialData, isEditing = 
                             src={lessonVideoPreview}
                             poster={lessonCoverPreview || undefined}
                             controls
+                            controlsList="nodownload"
+                            disablePictureInPicture
+                            onContextMenu={(e) => e.preventDefault()}
                             playsInline
                             preload="metadata"
                             className="w-full max-h-48 rounded bg-black"

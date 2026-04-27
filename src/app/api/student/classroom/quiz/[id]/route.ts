@@ -48,11 +48,7 @@ export async function GET(
             .eq('student_id', user.id)
             .eq('quiz_id', id);
 
-        if (cohortId && cohortId !== 'null' && cohortId !== 'undefined') {
-            querySub = querySub.eq('cohort_id', cohortId);
-        } else {
-            querySub = querySub.is('cohort_id', null);
-        }
+
 
         const { data: submissions, error: subError } = await querySub.order('created_at', { ascending: false });
 

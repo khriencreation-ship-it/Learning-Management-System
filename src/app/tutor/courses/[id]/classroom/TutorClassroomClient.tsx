@@ -145,6 +145,9 @@ export default function TutorClassroomClient({ course, exitHref, isAdmin = false
                         src={lesson.video_url || lesson.videoPreview}
                         poster={lesson.coverPreview || lesson.poster}
                         controls
+                        controlsList="nodownload"
+                        disablePictureInPicture
+                        onContextMenu={(e) => e.preventDefault()}
                         className="w-full h-full object-contain"
                     />
 

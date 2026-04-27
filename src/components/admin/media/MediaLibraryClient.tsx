@@ -663,7 +663,13 @@ export default function MediaLibraryClient({
                                     <img src={file.url} alt={file.filename} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                                 ) : file.type === 'video' || file.mime_type?.startsWith('video/') ? (
                                     <div className="relative w-full h-full flex items-center justify-center bg-gray-900">
-                                        <video src={file.url} className="w-full h-full object-cover opacity-80" />
+                                        <video
+                                            src={file.url}
+                                            controlsList="nodownload"
+                                            disablePictureInPicture
+                                            onContextMenu={(e) => e.preventDefault()}
+                                            className="w-full h-full object-cover opacity-80"
+                                        />
                                         <Film className="absolute text-white/80 w-10 h-10" />
                                     </div>
                                 ) : (

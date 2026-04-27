@@ -20,15 +20,10 @@ export async function GET(req: NextRequest) {
 
         let query = supabaseAdmin
             .from('student_progress')
-            .select('item_id, is_completed, completed_at')
-            .eq('student_id', user.id)
-            .eq('course_id', courseId);
+            .select('item_id, is_completed, completed_at, last_watched_second, max_watched_second')
+            .eq('student_id', user.id);
 
-        if (cohortId && cohortId !== 'null' && cohortId !== 'undefined') {
-            query = query.eq('cohort_id', cohortId);
-        } else {
-            query = query.is('cohort_id', null);
-        }
+
 
         const { data, error } = await query;
 
@@ -47,7 +42,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { courseId, itemId, isCompleted, cohortId } = body;
+        const { courseId, itemId, isCompleted, cohortId, lastWatchedSecond, maxWatchedSecond } = body;
 
         const authHeader = req.headers.get('Authorization');
         if (!authHeader) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -66,6 +61,8 @@ export async function POST(req: NextRequest) {
                 item_id: itemId,
                 is_completed: isCompleted,
                 completed_at: isCompleted ? new Date().toISOString() : null,
+                last_watched_second: lastWatchedSecond,
+                max_watched_second: maxWatchedSecond,
                 updated_at: new Date().toISOString()
             }, { onConflict: 'student_id, item_id, cohort_id' })
             .select()

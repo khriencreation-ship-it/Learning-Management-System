@@ -75,7 +75,7 @@ export async function POST(request: Request) {
         // Send Notifications based on Target
         // We do this asynchronously/background
         (async () => {
-            const targetTutorIds = new Set<string>();
+            const targetUserIds = new Set<string>();
 
             if (target_type === 'cohort' && cohort_id) {
                 // Get all tutors assigned to this cohort
@@ -84,7 +84,16 @@ export async function POST(request: Request) {
                     .select('tutor_id')
                     .eq('cohort_id', cohort_id);
 
-                tutors?.forEach(t => targetTutorIds.add(t.tutor_id));
+                tutors?.forEach(t => targetUserIds.add(t.tutor_id));
+
+                // Get all students in this cohort
+                const { data: students } = await supabaseAdmin
+                    .from('cohort_students')
+                    .select('student_id')
+                    .eq('cohort_id', cohort_id);
+
+                students?.forEach(s => targetUserIds.add(s.student_id));
+
             } else if (target_type === 'course' && course_id) {
                 // Get course instructor(s)
                 const { data: tutors } = await supabaseAdmin
@@ -92,25 +101,26 @@ export async function POST(request: Request) {
                     .select('tutor_id')
                     .eq('course_id', course_id);
 
-                if (tutors && tutors.length > 0) {
-                    tutors.forEach(t => targetTutorIds.add(t.tutor_id));
-                } else {
-                    // Fallback to name match for legacy courses
-                    const { data: course } = await supabaseAdmin.from('courses').select('instructor').eq('id', course_id).single();
-                    if (course?.instructor) {
-                        const { data: profile } = await supabaseAdmin.from('profiles').select('id').eq('full_name', course.instructor).single();
-                        if (profile) targetTutorIds.add(profile.id);
-                    }
-                }
+                tutors?.forEach(t => targetUserIds.add(t.tutor_id));
+
+                // Get all students enrolled in this course for this cohort
+                const { data: students } = await supabaseAdmin
+                    .from('course_enrollments')
+                    .select('student_id')
+                    .eq('course_id', course_id)
+                    .eq('cohort_id', cohort_id);
+
+                students?.forEach(s => targetUserIds.add(s.student_id));
             }
 
-            // Send to all unique tutors
-            const notificationPromises = Array.from(targetTutorIds).map(userId =>
+            // Send to all unique users
+            const notificationPromises = Array.from(targetUserIds).map(userId =>
                 sendNotification(
                     userId,
-                    `New Broadcast: ${title}`,
-                    `New announcement for ${target_type}: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`,
-                    'broadcast'
+                    `New Announcement: ${title}`,
+                    `${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`,
+                    'broadcast',
+                    target_type === 'course' ? `/student/courses/${course_id}?cohortId=${cohort_id}` : undefined
                 )
             );
 
