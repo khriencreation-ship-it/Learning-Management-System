@@ -51,31 +51,8 @@ export async function GET(req: NextRequest) {
             enrollmentsByCourse.get(e.course_id)?.push(e);
         });
 
-        // 2b. Fetch courses linked to student's cohorts
-        if (cohortIds.length > 0) {
-            const { data: cohortCourses } = await supabaseAdmin
-                .from('course_cohorts')
-                .select('cohort_id, course_id, settings')
-                .in('cohort_id', cohortIds);
-
-            cohortCourses?.forEach((cc: any) => {
-                if (!enrolledCourseIds.has(cc.course_id)) {
-                    enrolledCourseIds.add(cc.course_id);
-                }
-                if (!enrollmentsByCourse.has(cc.course_id)) {
-                    enrollmentsByCourse.set(cc.course_id, []);
-                }
-                // Add a virtual enrollment if not already present
-                const exists = enrollmentsByCourse.get(cc.course_id)?.some(e => e.cohort_id === cc.cohort_id);
-                if (!exists) {
-                    enrollmentsByCourse.get(cc.course_id)?.push({
-                        course_id: cc.course_id,
-                        cohort_id: cc.cohort_id,
-                        is_virtual: true
-                    });
-                }
-            });
-        }
+        // 2b. (Removed) Fetching courses linked to cohorts automatically is disabled to allow granular enrollment
+        // Only explicit course_enrollments are used now.
 
         // 2c. Fetch Course Details
         if (enrolledCourseIds.size > 0) {

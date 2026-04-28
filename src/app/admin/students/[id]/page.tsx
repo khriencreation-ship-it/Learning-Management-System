@@ -40,21 +40,13 @@ async function getStudentFullProfile(id: string) {
             assignedAt: a.start_date ? new Date(a.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'
         })) || [];
 
-        // 3b. Fetch courses from assigned cohorts (to catch progress for cohort-only enrollments)
-        const cohortIds = cohortAssignments?.map(a => a.cohort_id) || [];
-        let cohortLinkedCourses: any[] = [];
-        if (cohortIds.length > 0) {
-            const { data: cc } = await supabaseAdmin
-                .from('course_cohorts')
-                .select('course_id, courses(*)')
-                .in('cohort_id', cohortIds);
-            cohortLinkedCourses = cc || [];
-        }
-
-        // 4. Unique list of enrolled courses (Direct + Cohort)
+        // 3b. (Removed) Cohort-linked courses auto-inclusion removed to favor granular enrollments.
+        const enrolledCourseIds: string[] = [];
         const courseMap = new Map<string, any>();
 
-        // Add direct enrollments first
+        // 4. Unique list of enrolled courses (Direct Enrollments)
+
+        // Add direct enrollments
         directEnrollments?.forEach(enr => {
             const courseData = Array.isArray(enr.courses) ? enr.courses[0] : enr.courses;
             if (courseData) {
@@ -63,25 +55,11 @@ async function getStudentFullProfile(id: string) {
                     enrolledAt: enr.enrolled_at,
                     course_id: enr.course_id
                 });
+                enrolledCourseIds.push(enr.course_id);
             }
         });
 
-        // Add cohort-linked courses (don't overwrite direct if already present)
-        cohortLinkedCourses.forEach(cc => {
-            if (!courseMap.has(cc.course_id)) {
-                const courseData = Array.isArray(cc.courses) ? cc.courses[0] : cc.courses;
-                if (courseData) {
-                    const cohortAssign = cohortAssignments?.find(a => a.cohort_id === cc.cohort_id);
-                    courseMap.set(cc.course_id, {
-                        ...courseData,
-                        enrolledAt: cohortAssign?.start_date || new Date().toISOString(),
-                        course_id: cc.course_id
-                    });
-                }
-            }
-        });
 
-        const enrolledCourseIds = Array.from(courseMap.keys());
 
         // 5. Fetch Full Curriculum and Student Progress
         const [curriculumData, studentProgressData] = await Promise.all([
