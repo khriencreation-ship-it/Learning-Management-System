@@ -5,7 +5,8 @@ import { useState, useEffect, useRef } from "react";
 import DashboardLayout from "@/components/student/DashboardLayout";
 import {
     ChevronLeft, Play, FileText, CheckSquare, Video, ChevronDown, ChevronUp, ChevronRight,
-    Download, ExternalLink, Search, BookOpen, Clock, Calendar, ArrowRight, X as XIcon, CheckCircle2, Circle, Lock, List
+    Download, ExternalLink, Search, BookOpen, Clock, Calendar, ArrowRight, X as XIcon, CheckCircle2, Circle, Lock, List,
+    RotateCcw, FastForward
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -286,8 +287,9 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
     const handleSeeked = (e: any, lessonId: string) => {
         const video = e.target;
         const progress = videoProgress[lessonId];
-        // Allow a 5-second buffer for natural seeking/browser behavior
-        if (progress && video.currentTime > progress.max + 5) {
+        
+        // If trying to skip forward beyond what was watched (Allowed 12s tolerance for power nudge)
+        if (progress && video.currentTime > progress.max + 12) {
             video.currentTime = progress.max;
             showToast("You can only skip ahead to parts you've already watched.", "warning");
         }

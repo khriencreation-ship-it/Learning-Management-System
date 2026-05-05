@@ -50,7 +50,6 @@ async function getCourse(id: string) {
                     })
             }));
 
-        console.log("SERVER PASSING TO CLIENT:", JSON.stringify(sortedModules, null, 2));
         return {
             ...courseData,
             curriculum: sortedModules
