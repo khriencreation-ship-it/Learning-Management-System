@@ -13,6 +13,7 @@ import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/useToast";
 import StudentQuizView from './StudentQuizView';
 import StudentAssignmentView from './StudentAssignmentView';
+import VideoPlayer from "@/components/common/VideoPlayer";
 
 const CountdownTimer = ({ targetDate, targetTime }: { targetDate: string, targetTime: string }) => {
     const [timeLeft, setTimeLeft] = useState<{ days: number, hours: number, minutes: number, seconds: number } | null>(null);
@@ -309,19 +310,15 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
                 {/* Video Player */}
                 <div className="w-full aspect-video bg-black relative shadow-2xl overflow-hidden group">
                     {lesson.video_url || lesson.videoPreview ? (
-                        <video
+                        <VideoPlayer
                             key={lesson.id}
                             src={lesson.video_url || lesson.videoPreview}
                             poster={lesson.coverPreview}
-                            controls
-                            controlsList="nodownload"
-                            disablePictureInPicture
-                            onContextMenu={(e) => e.preventDefault()}
-                            className="w-full h-full object-contain"
                             onTimeUpdate={(e) => handleTimeUpdate(e, lesson.id)}
                             onLoadedMetadata={(e) => handleLoadedMetadata(e, lesson.id)}
                             onSeeked={(e) => handleSeeked(e, lesson.id)}
                             onEnded={() => toggleComplete(lesson.id, isComplete, { ...progress, last: progress.max })}
+                            className="w-full h-full"
                         />
                     ) : (
                         <div className="absolute inset-0 flex flex-col items-center justify-center text-white/40 space-y-4 bg-slate-900">

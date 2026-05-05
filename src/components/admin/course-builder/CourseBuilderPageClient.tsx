@@ -57,6 +57,7 @@ export default function CourseBuilderPageClient({ courseId, courseTitle, initial
                     return {
                         ...item,
                         ...meta,
+                        metadata: meta,
                         id: item.id,
                         name: item.title,
                         description: item.summary,

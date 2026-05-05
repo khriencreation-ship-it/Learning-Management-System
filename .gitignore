@@ -32,6 +32,20 @@ yarn-error.log*
 # vercel
 .vercel
 
+# supabase
+/supabase
+
+# scripts and temporary data
+seed-admin.js
+test_db.js
+check_admin.js
+check_videos.js
+fetch_props.js
+output.json
+props_out.json
+props_out.txt
+id.txt
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

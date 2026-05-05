@@ -97,7 +97,7 @@ export default async function Page(props: any) {
     return (
         <StudentClassroomClient
             course={course}
-            exitHref={cohortId ? `/student/cohorts/${cohortId}` : `/student/courses/${id}`}
+            exitHref={`/student/courses/${id}`}
             cohortId={cohortId}
         />
     );

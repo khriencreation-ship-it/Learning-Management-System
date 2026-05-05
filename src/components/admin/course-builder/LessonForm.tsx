@@ -29,6 +29,9 @@ export default function LessonForm({ onSave, onCancel, initialData, isEditing = 
     const [unlockDate, setUnlockDate] = useState(initialData?.unlockDate || '');
     const [unlockTime, setUnlockTime] = useState(initialData?.unlockTime || '');
 
+    const [videoType, setVideoType] = useState<'internal' | 'bunny'>(initialData?.metadata?.videoType || (initialData?.video_url?.includes('b-cdn.net') ? 'bunny' : 'internal'));
+    const [bunnyUrl, setBunnyUrl] = useState(initialData?.metadata?.bunnyUrl || (initialData?.video_url?.includes('b-cdn.net') ? initialData.video_url : ''));
+
     const [isPickerOpen, setIsPickerOpen] = useState(false);
     const [pickerTarget, setPickerTarget] = useState<'video' | 'cover' | 'file' | null>(null);
 
@@ -95,7 +98,8 @@ export default function LessonForm({ onSave, onCancel, initialData, isEditing = 
             name: lessonName,
             description: lessonDescription,
             video: lessonVideo,
-            videoPreview: lessonVideoPreview,
+            videoPreview: videoType === 'bunny' ? bunnyUrl : lessonVideoPreview,
+            video_url: videoType === 'bunny' ? bunnyUrl : lessonVideoPreview,
             coverImage: lessonCoverImage,
             coverPreview: lessonCoverPreview,
             playbackTime,
@@ -106,7 +110,12 @@ export default function LessonForm({ onSave, onCancel, initialData, isEditing = 
             links: lessonLinks.filter(link => link.trim()),
             hasUnlockDate,
             unlockDate,
-            unlockTime
+            unlockTime,
+            metadata: {
+                videoType,
+                bunnyUrl,
+                coverPreview: lessonCoverPreview
+            }
         });
     };
 
@@ -138,68 +147,107 @@ export default function LessonForm({ onSave, onCancel, initialData, isEditing = 
                 />
             </div>
 
-            {/* Video Upload */}
-            <div>
-                <label className="text-sm font-semibold text-gray-700">Lesson Video</label>
-                {lessonVideoPreview ? (
-                    <div className="border rounded-lg p-2 bg-white space-y-2">
-                        <video
-                            src={lessonVideoPreview}
-                            poster={lessonCoverPreview || undefined}
-                            controls
-                            controlsList="nodownload"
-                            disablePictureInPicture
-                            onContextMenu={(e) => e.preventDefault()}
-                            playsInline
-                            preload="metadata"
-                            className="w-full max-h-48 rounded bg-black"
-                            onError={(e) => console.error("Lesson video load error:", e)}
-                        />
-                        {!lessonCoverPreview && (
-                            <button
-                                type="button"
-                                onClick={() => openPicker('cover')}
-                                className="block text-center p-2 border border-dashed rounded cursor-pointer hover:bg-gray-50 w-full"
-                            >
-                                <ImageIcon size={16} className="mx-auto mb-1 text-gray-400" />
-                                <p className="text-xs text-gray-500">Add Thumbnail</p>
-                            </button>
-                        )}
-                        {lessonCoverPreview && (
-                            <div className="flex items-center gap-2">
-                                <img src={lessonCoverPreview} alt="Thumbnail" className="h-12 w-20 object-cover rounded" />
+            {/* Video Selection */}
+            <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                    <label className="text-sm font-semibold text-gray-700">Lesson Video Source</label>
+                    <div className="flex bg-gray-200 p-1 rounded-lg">
+                        <button
+                            type="button"
+                            onClick={() => setVideoType('internal')}
+                            className={`px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-md transition-all ${videoType === 'internal' ? 'bg-white text-primary shadow-sm' : 'text-gray-500'}`}
+                        >
+                            Internal
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setVideoType('bunny')}
+                            className={`px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-md transition-all ${videoType === 'bunny' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-500'}`}
+                        >
+                            Bunny.net
+                        </button>
+                    </div>
+                </div>
+
+                {videoType === 'bunny' ? (
+                    <div className="space-y-3 animate-in fade-in slide-in-from-top-1">
+                        <div className="relative group">
+                            <Video className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-orange-500 transition-colors" size={18} />
+                            <input
+                                type="url"
+                                value={bunnyUrl}
+                                onChange={(e) => setBunnyUrl(e.target.value)}
+                                placeholder="Paste Bunny.net .m3u8 URL or ID"
+                                className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 transition-all"
+                            />
+                        </div>
+                        <p className="text-[10px] text-gray-500 font-medium">
+                            Tip: Use the <span className="font-bold text-orange-600">HLS Playlist URL</span> from your Bunny.net Stream library for best results.
+                        </p>
+                    </div>
+                ) : (
+                    <div>
+                        {lessonVideoPreview ? (
+                            <div className="border rounded-lg p-2 bg-white space-y-2">
+                                <video
+                                    src={lessonVideoPreview}
+                                    poster={lessonCoverPreview || undefined}
+                                    controls
+                                    controlsList="nodownload"
+                                    disablePictureInPicture
+                                    onContextMenu={(e) => e.preventDefault()}
+                                    playsInline
+                                    preload="metadata"
+                                    className="w-full max-h-48 rounded bg-black"
+                                    onError={(e) => console.error("Lesson video load error:", e)}
+                                />
+                                {!lessonCoverPreview && (
+                                    <button
+                                        type="button"
+                                        onClick={() => openPicker('cover')}
+                                        className="block text-center p-2 border border-dashed rounded cursor-pointer hover:bg-gray-50 w-full"
+                                    >
+                                        <ImageIcon size={16} className="mx-auto mb-1 text-gray-400" />
+                                        <p className="text-xs text-gray-500">Add Thumbnail</p>
+                                    </button>
+                                )}
+                                {lessonCoverPreview && (
+                                    <div className="flex items-center gap-2">
+                                        <img src={lessonCoverPreview} alt="Thumbnail" className="h-12 w-20 object-cover rounded" />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setLessonCoverImage(null);
+                                                setLessonCoverPreview('');
+                                            }}
+                                            className="text-xs px-2 py-1 bg-red-50 text-red-600 rounded"
+                                        >
+                                            Remove
+                                        </button>
+                                    </div>
+                                )}
                                 <button
                                     type="button"
                                     onClick={() => {
+                                        setLessonVideo(null);
+                                        setLessonVideoPreview('');
                                         setLessonCoverImage(null);
                                         setLessonCoverPreview('');
                                     }}
-                                    className="text-xs px-2 py-1 bg-red-50 text-red-600 rounded"
+                                    className="w-full text-sm px-3 py-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100"
                                 >
-                                    Remove
+                                    Remove Video
                                 </button>
                             </div>
+                        ) : (
+                            <div
+                                onClick={() => openPicker('video')}
+                                className="block border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:bg-gray-50 transition-colors"
+                            >
+                                <Video size={24} className="mx-auto mb-2 text-gray-400" />
+                                <p className="text-sm text-gray-500 font-medium">Select video from library</p>
+                            </div>
                         )}
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setLessonVideo(null);
-                                setLessonVideoPreview('');
-                                setLessonCoverImage(null);
-                                setLessonCoverPreview('');
-                            }}
-                            className="w-full text-sm px-3 py-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100"
-                        >
-                            Remove Video
-                        </button>
-                    </div>
-                ) : (
-                    <div
-                        onClick={() => openPicker('video')}
-                        className="block border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:bg-gray-50"
-                    >
-                        <Video size={24} className="mx-auto mb-2 text-gray-400" />
-                        <p className="text-sm text-gray-500">Select video from library</p>
                     </div>
                 )}
             </div>

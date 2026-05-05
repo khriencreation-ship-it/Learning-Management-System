@@ -24,6 +24,7 @@ import {
     Paperclip,
     X as XIcon
 } from "lucide-react";
+import VideoPlayer from "@/components/common/VideoPlayer";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -140,17 +141,12 @@ export default function TutorClassroomClient({ course, exitHref, isAdmin = false
             {/* Video Player */}
             <div className="w-full aspect-video bg-black relative shadow-2xl overflow-hidden group">
                 {lesson.video_url || lesson.videoPreview ? (
-                    <video
+                    <VideoPlayer
                         key={lesson.id}
                         src={lesson.video_url || lesson.videoPreview}
                         poster={lesson.coverPreview || lesson.poster}
-                        controls
-                        controlsList="nodownload"
-                        disablePictureInPicture
-                        onContextMenu={(e) => e.preventDefault()}
-                        className="w-full h-full object-contain"
+                        className="w-full h-full"
                     />
-
                 ) : (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-white/40 space-y-4 bg-slate-900">
                         <Play size={64} className="opacity-20 translate-y-2 group-hover:translate-y-0 transition-transform duration-500" />

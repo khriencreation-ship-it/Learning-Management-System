@@ -6,7 +6,7 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { 
     Search, Plus, MoreHorizontal, Mail, Phone, User, CheckCircle2, 
     XCircle, AlertCircle, Eye, Edit2, Trash2, Upload,
-    ChevronLeft, ChevronRight 
+    ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight 
 } from 'lucide-react';
 import CreateStudentModal from '../modals/CreateStudentModal';
 import DeleteStudentModal from '../modals/DeleteStudentModal';
@@ -394,6 +394,15 @@ export default function StudentListClient({
                     
                     <div className="flex items-center gap-2">
                         <button
+                            onClick={() => handlePageChange(1)}
+                            disabled={currentPage === 1}
+                            title="First Page"
+                            className="p-2 bg-white border border-gray-100 rounded-xl text-gray-400 hover:text-primary hover:border-primary disabled:opacity-50 disabled:hover:text-gray-400 disabled:hover:border-gray-100 transition-all shadow-sm"
+                        >
+                            <ChevronsLeft size={20} />
+                        </button>
+
+                        <button
                             onClick={() => handlePageChange(currentPage - 1)}
                             disabled={currentPage === 1}
                             className="p-2 bg-white border border-gray-100 rounded-xl text-gray-400 hover:text-primary hover:border-primary disabled:opacity-50 disabled:hover:text-gray-400 disabled:hover:border-gray-100 transition-all shadow-sm"
@@ -402,17 +411,20 @@ export default function StudentListClient({
                         </button>
                         
                         <div className="flex items-center gap-1">
-                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                                let pageNum = i + 1;
-                                if (totalPages > 5) {
-                                    if (currentPage > 3) {
-                                        pageNum = currentPage - 2 + i;
-                                        if (pageNum > totalPages) pageNum = totalPages - (4 - i);
-                                    }
-                                }
-                                if (pageNum > totalPages || pageNum < 1) return null;
+                            {(() => {
+                                let startPage = Math.max(1, currentPage - 2);
+                                let endPage = Math.min(totalPages, startPage + 4);
                                 
-                                return (
+                                if (endPage - startPage < 4) {
+                                    startPage = Math.max(1, endPage - 4);
+                                }
+
+                                const pages = [];
+                                for (let i = startPage; i <= endPage; i++) {
+                                    pages.push(i);
+                                }
+
+                                return pages.map((pageNum) => (
                                     <button
                                         key={pageNum}
                                         onClick={() => handlePageChange(pageNum)}
@@ -424,8 +436,8 @@ export default function StudentListClient({
                                     >
                                         {pageNum}
                                     </button>
-                                );
-                            })}
+                                ));
+                            })()}
                         </div>
 
                         <button
@@ -434,6 +446,15 @@ export default function StudentListClient({
                             className="p-2 bg-white border border-gray-100 rounded-xl text-gray-400 hover:text-primary hover:border-primary disabled:opacity-50 disabled:hover:text-gray-400 disabled:hover:border-gray-100 transition-all shadow-sm"
                         >
                             <ChevronRight size={20} />
+                        </button>
+
+                        <button
+                            onClick={() => handlePageChange(totalPages)}
+                            disabled={currentPage === totalPages}
+                            title="Last Page"
+                            className="p-2 bg-white border border-gray-100 rounded-xl text-gray-400 hover:text-primary hover:border-primary disabled:opacity-50 disabled:hover:text-gray-400 disabled:hover:border-gray-100 transition-all shadow-sm"
+                        >
+                            <ChevronsRight size={20} />
                         </button>
                     </div>
                 </div>

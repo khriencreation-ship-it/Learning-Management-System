@@ -453,7 +453,8 @@ export async function GET(
                         playbackTime: meta.playbackTime || (item.duration ? `${item.duration} min` : ''),
                         playbackHours: meta.playbackHours || '',
                         playbackMinutes: meta.playbackMinutes || '',
-                        playbackSeconds: meta.playbackSeconds || ''
+                        playbackSeconds: meta.playbackSeconds || '',
+                        metadata: meta
                     };
                 }
             });
