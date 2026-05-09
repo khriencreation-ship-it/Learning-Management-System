@@ -13,6 +13,7 @@ import { supabase } from '@/lib/supabase';
 import { User } from '@/lib/authClient';
 import ActivitiesAndChallenges from '@/components/student/ActivitiesAndChallenges';
 import NotificationScanner from '@/components/student/notifications/NotificationScanner';
+import WeeklySchedule from '@/components/student/WeeklySchedule';
 
 export default function StudentDashboardClient({ user }: { user: User }) {
     const router = useRouter();
@@ -24,12 +25,14 @@ export default function StudentDashboardClient({ user }: { user: User }) {
         recentCohorts: any[];
         recentCourses: any[];
         recentBroadcasts: any[];
+        weeklySchedule: any[];
     }>({
         totalCohorts: 0,
         totalCourses: 0,
         recentCohorts: [],
         recentCourses: [],
-        recentBroadcasts: []
+        recentBroadcasts: [],
+        weeklySchedule: []
     });
 
     useEffect(() => {
@@ -46,7 +49,8 @@ export default function StudentDashboardClient({ user }: { user: User }) {
 
                 if (!res.ok) throw new Error('Failed to fetch data');
 
-                const { cohorts, courses, broadcasts } = await res.json();
+                const responseData = await res.json();
+                const { cohorts, courses, broadcasts, weeklySchedule } = responseData;
 
                 const sortedCohorts = (cohorts || []).sort((a: any, b: any) =>
                     new Date(b.created_at || b.start_date || 0).getTime() - new Date(a.created_at || a.start_date || 0).getTime()
@@ -61,7 +65,8 @@ export default function StudentDashboardClient({ user }: { user: User }) {
                     totalCourses: courses?.length || 0,
                     recentCohorts: sortedCohorts.slice(0, 5),
                     recentCourses: sortedCourses.slice(0, 5),
-                    recentBroadcasts: broadcasts || []
+                    recentBroadcasts: broadcasts || [],
+                    weeklySchedule: weeklySchedule || []
                 });
 
             } catch (error) {
@@ -116,6 +121,11 @@ export default function StudentDashboardClient({ user }: { user: User }) {
                         icon={BookOpen}
                         color="purple"
                     />
+                </div>
+                
+                {/* Weekly Schedule Section */}
+                <div className="mb-10">
+                    <WeeklySchedule items={data.weeklySchedule} />
                 </div>
 
                 {/* Activities & Challenges */}

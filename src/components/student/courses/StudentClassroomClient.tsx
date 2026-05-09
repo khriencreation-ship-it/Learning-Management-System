@@ -9,7 +9,7 @@ import {
     RotateCcw, FastForward
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/useToast";
 import StudentQuizView from './StudentQuizView';
@@ -99,6 +99,8 @@ interface StudentClassroomClientProps {
 
 export default function StudentClassroomClient({ course, exitHref, cohortId }: StudentClassroomClientProps) {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const deepLinkId = searchParams.get('itemId');
     const [selectedItem, setSelectedItem] = useState<any>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
@@ -110,16 +112,31 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
     const { showToast } = useToast();
     const lastSyncTime = useRef<number>(0);
 
-    // Initialize with first item
+    // Initialize with first item or deep linked item
     useEffect(() => {
         if (course.curriculum && course.curriculum.length > 0) {
-            const firstModule = course.curriculum[0];
-            if (firstModule.items && firstModule.items.length > 0) {
-                setSelectedItem(firstModule.items[0]);
-                setExpandedModules(new Set([firstModule.id]));
+            // Priority 1: Deep Link
+            if (deepLinkId) {
+                for (const module of course.curriculum) {
+                    const item = module.items?.find((i: any) => i.id === deepLinkId);
+                    if (item) {
+                        setSelectedItem(item);
+                        setExpandedModules(prev => new Set([...prev, module.id]));
+                        return;
+                    }
+                }
+            }
+
+            // Priority 2: First item (if not already selected)
+            if (!selectedItem) {
+                const firstModule = course.curriculum[0];
+                if (firstModule.items && firstModule.items.length > 0) {
+                    setSelectedItem(firstModule.items[0]);
+                    setExpandedModules(new Set([firstModule.id]));
+                }
             }
         }
-    }, [course]);
+    }, [course, deepLinkId]);
 
     // Fetch Completed Items
     useEffect(() => {

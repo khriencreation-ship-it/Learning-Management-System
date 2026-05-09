@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, PlayCircle, FileText, CheckCircle, Clock, Video } from 'lucide-react';
+import { ChevronDown, ChevronUp, PlayCircle, FileText, CheckCircle, Clock, Video, ChevronRight } from 'lucide-react';
 
 interface ModuleItem {
     id: string;
@@ -89,45 +89,57 @@ export default function CurriculumModule({ module, index, courseId, isTutor, isA
             {isOpen && (
                 <div className="border-t border-gray-100 divide-y divide-gray-100">
                     {module.items && module.items.length > 0 ? (
-                        module.items.map((item) => (
-                            <div key={item.id} className="p-2 pl-12 hover:bg-gray-50 transition-colors flex items-center justify-between group">
-                                <div className="flex items-center gap-2.5">
-                                    <div className="p-1 rounded-full bg-gray-100 group-hover:bg-white transition-colors">
-                                        {getItemIcon(item.type)}
-                                    </div>
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            <p className="text-xs font-semibold text-gray-700">{item.title}</p>
-                                            {item.type !== 'lesson' && (
-                                                <span className="text-[9px] px-1 py-0.5 rounded bg-gray-100 text-gray-500 uppercase font-bold tracking-tight">
-                                                    {getItemTypeLabel(item.type)}
-                                                </span>
+                        module.items.map((item) => {
+                            const isStudent = !isAdmin && !isTutor;
+                            const ItemWrapper = isStudent ? Link : 'div';
+                            const itemProps = isStudent ? { href: `/student/courses/${courseId}/classroom?itemId=${item.id}` } : {};
+
+                            return (
+                                <ItemWrapper
+                                    key={item.id}
+                                    {...itemProps as any}
+                                    className="p-2 pl-12 hover:bg-gray-50 transition-colors flex items-center justify-between group cursor-pointer"
+                                >
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="p-1 rounded-full bg-gray-100 group-hover:bg-white transition-colors">
+                                            {getItemIcon(item.type)}
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-xs font-semibold text-gray-700">{item.title}</p>
+                                                {item.type !== 'lesson' && (
+                                                    <span className="text-[9px] px-1 py-0.5 rounded bg-gray-100 text-gray-500 uppercase font-bold tracking-tight">
+                                                        {getItemTypeLabel(item.type)}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {item.summary && (
+                                                <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{item.summary}</p>
                                             )}
                                         </div>
-                                        {item.summary && (
-                                            <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{item.summary}</p>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        {isAdmin && courseId && item.type === 'assignment' && (
+                                            <Link
+                                                href={`/admin/courses/${courseId}/submissions/${item.id}`}
+                                                className="px-3 py-1 bg-orange-50 text-orange-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-orange-100 hover:bg-orange-500 hover:text-white hover:border-orange-500 transition-all shadow-sm"
+                                            >
+                                                View Submissions
+                                            </Link>
+                                        )}
+                                        {item.duration && (
+                                            <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                                                <Clock size={14} />
+                                                <span>{item.duration}m</span>
+                                            </div>
+                                        )}
+                                        {isStudent && (
+                                            <ChevronRight size={14} className="text-gray-300 group-hover:text-primary group-hover:translate-x-0.5 transition-all opacity-0 group-hover:opacity-100" />
                                         )}
                                     </div>
-                                </div>
-                                <div className="flex items-center gap-4">
-                                    {isAdmin && courseId && item.type === 'assignment' && (
-                                        <Link
-                                            href={`/admin/courses/${courseId}/submissions/${item.id}`}
-                                            className="px-3 py-1 bg-orange-50 text-orange-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-orange-100 hover:bg-orange-500 hover:text-white hover:border-orange-500 transition-all shadow-sm"
-                                        >
-                                            View Submissions
-                                        </Link>
-                                    )}
-                                    {item.duration && (
-                                        <div className="flex items-center gap-1.5 text-xs text-gray-400">
-                                            <Clock size={14} />
-                                            <span>{item.duration}m</span>
-                                        </div>
-                                    )}
-                                </div>
-
-                            </div>
-                        ))
+                                </ItemWrapper>
+                            );
+                        })
                     ) : (
                         <div className="p-6 text-center text-sm text-gray-400 italic">
                             No content in this module yet.

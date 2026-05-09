@@ -144,10 +144,84 @@ export async function GET(req: NextRequest) {
             }
         }
 
+        // 5. Weekly Schedule
+        const today = new Date();
+        const currentDay = today.getDay();
+        const diff = today.getDate() - currentDay + (currentDay === 0 ? -6 : 1);
+        const startOfWeek = new Date(today.setDate(diff));
+        startOfWeek.setHours(0, 0, 0, 0);
+
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(endOfWeek.getDate() + 6);
+        endOfWeek.setHours(23, 59, 59, 999);
+
+        let weeklySchedule: any[] = [];
+        const weeklyScheduleMap = new Map<string, any>();
+        if (courseIds.length > 0) {
+            const { data: curriculumData } = await supabaseAdmin
+                .from('course_modules')
+                .select(`
+                    id,
+                    course_id,
+                    courses(title),
+                    module_items(*)
+                `)
+                .in('course_id', courseIds);
+
+            curriculumData?.forEach((module: any) => {
+                module.module_items?.forEach((item: any) => {
+                    // Check metadata for unlock dates
+                    let meta = item.metadata || {};
+                    if (typeof meta === 'string') {
+                        try { meta = JSON.parse(meta); } catch (e) { meta = {}; }
+                    }
+
+                    // For live classes, the field is often 'date' in metadata
+                    // For others it's 'unlockDate' or stored in item.unlockDate
+                    const unlockDate = item.unlockDate || meta.unlockDate || meta.date;
+                    
+                    if (unlockDate) {
+                        try {
+                            const itemDate = new Date(unlockDate);
+                            if (itemDate >= startOfWeek && itemDate <= endOfWeek) {
+                                // Use a composite key to avoid duplicates with different IDs but same content
+                                const scheduleKey = `${item.title}-${unlockDate}-${item.unlockTime || meta.unlockTime || meta.time || "00:00"}`;
+                                if (!weeklyScheduleMap.has(scheduleKey)) {
+                                    weeklyScheduleMap.set(scheduleKey, {
+                                        id: item.id,
+                                        title: item.title,
+                                        type: item.type,
+                                        date: unlockDate,
+                                        time: item.unlockTime || meta.unlockTime || meta.time || "00:00",
+                                        duration: meta.duration || item.duration || null,
+                                        questionsCount: meta.questions?.length || 0,
+                                        courseId: module.course_id,
+                                        courseTitle: module.courses?.title
+                                    });
+                                }
+                            }
+                        } catch (e) {
+                            // Invalid date, skip
+                        }
+                    }
+                });
+            });
+
+            weeklySchedule = Array.from(weeklyScheduleMap.values());
+
+            // Sort by date and time
+            weeklySchedule.sort((a, b) => {
+                const dateCompare = new Date(a.date).getTime() - new Date(b.date).getTime();
+                if (dateCompare !== 0) return dateCompare;
+                return a.time.localeCompare(b.time);
+            });
+        }
+
         return NextResponse.json({
             cohorts,
             courses,
-            broadcasts
+            broadcasts,
+            weeklySchedule
         });
 
     } catch (error: any) {

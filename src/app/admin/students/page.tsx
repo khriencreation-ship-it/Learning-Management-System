@@ -15,7 +15,7 @@ async function getStudents(page: number = 1, pageSize: number = 25, search?: str
             .eq('role', 'student');
 
         if (search) {
-            query = query.or(`full_name.ilike.%${search}%,username.ilike.%${search}%,identifier.ilike.%${search}%`);
+            query = query.or(`full_name.ilike.%${search}%,username.ilike.%${search}%,identifier.ilike.%${search}%,phone_number.ilike.%${search}%`);
         }
 
         if (status && status !== 'all') {

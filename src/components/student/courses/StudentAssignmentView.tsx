@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
     UploadCloud, FileText, Send, Paperclip, X,
     Clock, AlertCircle, CheckCircle2, File
@@ -82,6 +82,7 @@ export default function StudentAssignmentView({ assignment, courseId, cohortId, 
     const [uploading, setUploading] = useState(false);
     const [submission, setSubmission] = useState<any>(null);
     const { toasts, removeToast, showToast } = useToast();
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Fetch existing submission
     useEffect(() => {
@@ -120,6 +121,9 @@ export default function StudentAssignmentView({ assignment, courseId, cohortId, 
             }
 
             setFiles(prev => [...prev, ...validFiles].slice(0, limit));
+            
+            // Reset input value to allow selecting the same file again
+            if (e.target) e.target.value = '';
         }
     };
 
@@ -409,12 +413,17 @@ export default function StudentAssignmentView({ assignment, courseId, cohortId, 
                                         )}
 
                                         {files.length < (assignment.metadata?.fileUploadLimit || 1) && (
-                                            <div className="relative group">
+                                            <div 
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="relative group cursor-pointer"
+                                            >
                                                 <input
                                                     type="file"
+                                                    ref={fileInputRef}
                                                     multiple
+                                                    accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar,image/*"
                                                     onChange={handleFileChange}
-                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                                    className="hidden"
                                                 />
                                                 <div className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all border-gray-200 bg-gray-50 group-hover:border-indigo-400 group-hover:bg-indigo-50`}>
                                                     <div className="space-y-2">
