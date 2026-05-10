@@ -3,6 +3,7 @@
 import { Upload, FileText, X, Lock, Calendar, Clock, Image as ImageIcon, Video } from 'lucide-react';
 import { useState } from 'react';
 import MediaPickerModal from '../media/MediaPickerModal';
+import RichTextEditor from '@/components/ui/RichTextEditor';
 
 interface LessonFormProps {
     onSave: (lessonData: any) => void;
@@ -137,13 +138,11 @@ export default function LessonForm({ onSave, onCancel, initialData, isEditing = 
             </div>
 
             <div>
-                <label className="text-sm font-semibold text-gray-700">Description</label>
-                <textarea
-                    value={lessonDescription}
-                    onChange={(e) => setLessonDescription(e.target.value)}
+                <label className="text-sm font-semibold text-gray-700 mb-2 block">Description</label>
+                <RichTextEditor
+                    content={lessonDescription}
+                    onChange={setLessonDescription}
                     placeholder="Lesson description..."
-                    rows={2}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
                 />
             </div>
 

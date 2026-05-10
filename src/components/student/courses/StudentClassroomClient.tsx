@@ -411,9 +411,11 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
                     </div>
 
                 <div className="prose prose-purple max-w-none">
-                    <p className="text-gray-600 text-lg leading-relaxed font-medium">
-                        {lesson.summary || lesson.description || "No description provided."}
-                    </p>
+                    {lesson.summary || lesson.description ? (
+                        <div dangerouslySetInnerHTML={{ __html: lesson.summary || lesson.description }} className="text-gray-600 text-lg leading-relaxed font-medium" />
+                    ) : (
+                        <p className="text-gray-400 italic">No description provided.</p>
+                    )}
                 </div>
 
                 {/* Materials */}
@@ -545,9 +547,11 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
                     <h1 className="text-4xl font-black text-gray-900 tracking-tight">{liveClass.title}</h1>
                     <div className="p-8 bg-gray-50 rounded-[2.5rem] border border-gray-100">
                         <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 italic">About this session</h4>
-                        <p className="text-gray-600 text-lg leading-relaxed font-medium">
-                            {liveClass.description || "No specific instructions provided for this live session. Please be on time!"}
-                        </p>
+                        {liveClass.description ? (
+                            <div dangerouslySetInnerHTML={{ __html: liveClass.description }} className="text-gray-600 text-lg leading-relaxed font-medium" />
+                        ) : (
+                            <p className="text-gray-400 italic font-medium">No specific instructions provided for this live session. Please be on time!</p>
+                        )}
                     </div>
                 </div>
             </div>
@@ -608,9 +612,13 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
                     <h1 className="text-4xl font-black text-gray-900 tracking-tight">{item.title}</h1>
                     <div className="p-8 bg-gray-50 rounded-[2.5rem] border border-gray-100">
                         <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 italic">About this {item.type.replace(/[-_]/g, ' ')}</h4>
-                        <p className="text-gray-600 text-lg leading-relaxed font-medium">
-                            {item.summary || item.description || `This ${item.type.replace(/[-_]/g, ' ')} is currently locked and will be available once the timer runs out.`}
-                        </p>
+                        {item.summary || item.description ? (
+                            <div dangerouslySetInnerHTML={{ __html: item.summary || item.description }} className="text-gray-600 text-lg leading-relaxed font-medium" />
+                        ) : (
+                            <p className="text-gray-400 italic font-medium">
+                                This {item.type.replace(/[-_]/g, ' ')} is currently locked and will be available once the timer runs out.
+                            </p>
+                        )}
                     </div>
                 </div>
             </div>

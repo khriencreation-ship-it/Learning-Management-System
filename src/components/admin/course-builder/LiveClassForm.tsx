@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Video, X, Calendar, Clock, Link as LinkIcon, AlertCircle, Loader2, Sparkles, Copy, CheckCircle, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import RichTextEditor from '@/components/ui/RichTextEditor';
 
 interface LiveClassFormProps {
     onSave: (liveClassData: any) => void;
@@ -155,12 +156,10 @@ export default function LiveClassForm({ onSave, onCancel, initialData, isEditing
                         <label className="block text-sm font-semibold text-gray-700 mb-2">
                             Description
                         </label>
-                        <textarea
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
+                        <RichTextEditor
+                            content={description}
+                            onChange={setDescription}
                             placeholder="Brief description of the class..."
-                            rows={3}
-                            className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 resize-none"
                         />
                     </div>
                 </div>

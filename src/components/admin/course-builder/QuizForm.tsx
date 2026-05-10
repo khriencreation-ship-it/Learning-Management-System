@@ -4,6 +4,7 @@ import { Plus, X, Trash2, Check, Lock, Calendar, Clock, AlertCircle, Upload, Fil
 import { useState, useRef } from 'react';
 import { useToast } from '@/hooks/useToast';
 import * as XLSX from 'xlsx';
+import RichTextEditor from '@/components/ui/RichTextEditor';
 
 interface QuizFormProps {
     onSave: (quizData: any) => void;
@@ -280,13 +281,11 @@ export default function QuizForm({ onSave, onCancel, initialData, isEditing = fa
                         />
                     </div>
                     <div>
-                        <label className="text-sm font-semibold text-gray-700">Quiz Summary</label>
-                        <textarea
-                            value={quizSummary}
-                            onChange={(e) => setQuizSummary(e.target.value)}
+                        <label className="text-sm font-semibold text-gray-700 mb-2 block">Quiz Summary</label>
+                        <RichTextEditor
+                            content={quizSummary}
+                            onChange={setQuizSummary}
                             placeholder="Brief description of the quiz..."
-                            rows={2}
-                            className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-300 resize-none"
                         />
                     </div>
                     <div className="flex gap-2">

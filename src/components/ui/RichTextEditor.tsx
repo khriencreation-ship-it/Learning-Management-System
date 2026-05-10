@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
@@ -9,6 +10,7 @@ interface RichTextEditorProps {
     content: string;
     onChange: (html: string) => void;
     placeholder?: string;
+    editable?: boolean;
 }
 
 const MenuBar = ({ editor }: { editor: any }) => {
@@ -86,7 +88,16 @@ const MenuBar = ({ editor }: { editor: any }) => {
     );
 };
 
-export default function RichTextEditor({ content, onChange, placeholder }: RichTextEditorProps) {
+export const cleanHTML = (html: string) => {
+    if (!html) return '';
+    const trimmed = html.trim();
+    if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+        return trimmed.slice(1, -1);
+    }
+    return html;
+};
+
+export default function RichTextEditor({ content, onChange, placeholder, editable = true }: RichTextEditorProps) {
     const editor = useEditor({
         extensions: [
             StarterKit,
@@ -94,19 +105,26 @@ export default function RichTextEditor({ content, onChange, placeholder }: RichT
         ],
         immediatelyRender: false,
         content: content,
+        editable,
         onUpdate: ({ editor }) => {
             onChange(editor.getHTML());
         },
         editorProps: {
             attributes: {
-                class: 'prose prose-sm focus:outline-none max-w-none p-4 min-h-[150px] font-medium text-gray-700',
+                class: `prose prose-sm focus:outline-none max-w-none p-4 min-h-[150px] font-medium text-gray-700 ${!editable ? 'bg-gray-50/50' : ''}`,
             },
         },
     });
 
+    useEffect(() => {
+        if (editor && content !== editor.getHTML()) {
+            editor.commands.setContent(content);
+        }
+    }, [content, editor]);
+
     return (
-        <div className="w-full rounded-xl border border-gray-200 overflow-hidden focus-within:ring-2 focus-within:ring-purple-500/20 focus-within:border-purple-500 transition-all bg-white">
-            <MenuBar editor={editor} />
+        <div className={`w-full rounded-xl border border-gray-200 overflow-hidden transition-all bg-white ${editable ? 'focus-within:ring-2 focus-within:ring-purple-500/20 focus-within:border-purple-500' : ''}`}>
+            {editable && <MenuBar editor={editor} />}
             <EditorContent editor={editor} />
         </div>
     );

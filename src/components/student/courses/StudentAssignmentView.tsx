@@ -9,6 +9,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/useToast';
 import Toast from '@/components/ui/Toast';
+import RichTextEditor, { cleanHTML } from '@/components/ui/RichTextEditor';
 
 interface StudentAssignmentViewProps {
     assignment: any;
@@ -342,9 +343,13 @@ export default function StudentAssignmentView({ assignment, courseId, cohortId, 
                                             </div>
                                         )}
                                         {submission.grade_data?.feedback && (
-                                            <div className="mt-3 p-3 bg-white/50 rounded-lg border border-emerald-200/50 text-sm italic">
-                                                <div className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-1">Tutor Feedback</div>
-                                                "{submission.grade_data.feedback}"
+                                            <div className="mt-3">
+                                                <div className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-2 ml-1">Tutor Feedback</div>
+                                                <RichTextEditor 
+                                                    content={cleanHTML(submission.grade_data.feedback)} 
+                                                    onChange={() => {}} 
+                                                    editable={false} 
+                                                />
                                             </div>
                                         )}
                                     </div>

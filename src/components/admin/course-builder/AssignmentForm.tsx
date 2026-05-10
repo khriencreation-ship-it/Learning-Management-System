@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react';
 import { Upload, X, FileText, Settings, Paperclip, Info, AlertCircle, Calendar, Clock, Lock } from 'lucide-react';
 import MediaPickerModal from '../media/MediaPickerModal';
+import RichTextEditor from '@/components/ui/RichTextEditor';
 
 interface AssignmentFormProps {
     onSave: (assignmentData: any) => void;
@@ -161,13 +162,11 @@ export default function AssignmentForm({ onSave, onCancel, initialData, isEditin
                     </div>
 
                     <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Content / Instructions</label>
-                        <textarea
-                            value={content}
-                            onChange={(e) => setContent(e.target.value)}
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Content / Instructions</label>
+                        <RichTextEditor
+                            content={content}
+                            onChange={setContent}
                             placeholder="Describe the assignment task..."
-                            rows={8}
-                            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-colors resize-none"
                         />
                     </div>
                 </div>

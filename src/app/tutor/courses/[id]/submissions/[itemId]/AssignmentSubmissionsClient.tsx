@@ -27,6 +27,7 @@ import Link from 'next/link';
 import { getCurrentUser } from '@/lib/authClient';
 import { useToast } from '@/hooks/useToast';
 import Toast from '@/components/ui/Toast';
+import RichTextEditor from '@/components/ui/RichTextEditor';
 
 interface AssignmentSubmissionsClientProps {
     assignment: any;
@@ -80,6 +81,8 @@ export default function AssignmentSubmissionsClient({ assignment, courseId, cour
     const [gradingPoints, setGradingPoints] = useState<number | ''>('');
     const [gradingFeedback, setGradingFeedback] = useState('');
     const [isSaving, setIsSaving] = useState(false);
+    const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+    const [aiSourceText, setAiSourceText] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState<'all' | 'submitted' | 'graded'>('all');
     const [user, setUser] = useState<any>(null);
@@ -113,6 +116,8 @@ export default function AssignmentSubmissionsClient({ assignment, courseId, cour
             setLoading(false);
         }
     };
+
+    const maxPoints = assignment.metadata?.points || assignment.metadata?.totalPoints || 10;
 
     const handleGradeSubmit = async (status: 'graded' | 'resubmit_requested' = 'graded') => {
         if (!selectedSubmission || !user || readOnly) return;
@@ -148,6 +153,50 @@ export default function AssignmentSubmissionsClient({ assignment, courseId, cour
             error('An error occurred while saving');
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const handleAIGrade = async () => {
+        if (!selectedSubmission) return;
+        
+        // Priority for text to analyze:
+        // 1. Manually pasted text in aiSourceText
+        // 2. Student's comment in submission_data.content
+        const textToAnalyze = aiSourceText || selectedSubmission.submission_data?.content;
+        
+        if (!textToAnalyze) {
+            warning('Please provide some text to analyze. Paste the student\'s work or ensure they provided a comment.');
+            return;
+        }
+
+        setIsGeneratingAI(true);
+        try {
+            const res = await fetch('/api/ai/grade', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    assignmentTitle: assignment.title,
+                    assignmentInstructions: assignment.content,
+                    submissionText: textToAnalyze,
+                    maxPoints: maxPoints,
+                    studentName: selectedSubmission.student?.full_name || 'Student'
+                })
+            });
+
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || 'Failed to generate AI grade');
+            }
+
+            const data = await res.json();
+            setGradingPoints(data.score);
+            setGradingFeedback(data.feedback);
+            success('AI Grading generated! Please review before saving.');
+        } catch (err: any) {
+            console.error('AI Grading Error:', err);
+            error(err.message || 'An error occurred while generating AI grade');
+        } finally {
+            setIsGeneratingAI(false);
         }
     };
 
@@ -446,7 +495,7 @@ export default function AssignmentSubmissionsClient({ assignment, courseId, cour
 
                                         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                                             <div className="space-y-3">
-                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Score / {assignment.metadata?.totalPoints || 100}</label>
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Score / {maxPoints}</label>
                                                 <input
                                                     type="number"
                                                     value={gradingPoints}
@@ -457,13 +506,40 @@ export default function AssignmentSubmissionsClient({ assignment, courseId, cour
                                                 />
                                             </div>
                                             <div className="md:col-span-3 space-y-3">
-                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Instructor Feedback</label>
-                                                <textarea
-                                                    value={gradingFeedback}
-                                                    onChange={(e) => setGradingFeedback(e.target.value)}
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Instructor Feedback</label>
+                                                    {!readOnly && (
+                                                        <button 
+                                                            onClick={handleAIGrade}
+                                                            disabled={isGeneratingAI}
+                                                            className="flex items-center gap-1.5 px-3 py-1 bg-purple-500/10 text-purple-400 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-purple-500 hover:text-white transition-all disabled:opacity-50"
+                                                        >
+                                                            {isGeneratingAI ? (
+                                                                <div className="w-3 h-3 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+                                                            ) : (
+                                                                <Sparkles size={12} />
+                                                            )}
+                                                            {isGeneratingAI ? 'Analyzing...' : 'Assist with AI'}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                
+                                                {!readOnly && (
+                                                    <div className="mb-4">
+                                                        <textarea 
+                                                            value={aiSourceText}
+                                                            onChange={(e) => setAiSourceText(e.target.value)}
+                                                            placeholder="Paste student's work here for AI analysis (Optional if they provided a comment)..."
+                                                            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-gray-300 focus:border-purple-500 outline-none transition-all resize-none h-20"
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                <RichTextEditor
+                                                    content={gradingFeedback}
+                                                    onChange={setGradingFeedback}
                                                     placeholder={readOnly ? "No feedback provided" : "Great work! Here are some suggestions..."}
-                                                    readOnly={readOnly}
-                                                    className={`w-full bg-white/5 border border-white/10 focus:border-primary focus:ring-4 focus:ring-primary/10 rounded-2xl px-6 py-4 text-sm font-bold outline-none transition-all min-h-[120px] placeholder:text-gray-700 ${readOnly ? 'cursor-default opacity-70' : ''}`}
+                                                    editable={!readOnly}
                                                 />
                                             </div>
                                         </div>
