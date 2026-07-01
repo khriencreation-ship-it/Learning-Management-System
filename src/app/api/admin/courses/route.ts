@@ -46,7 +46,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { title, instructor, image } = body;
+        const { title, instructor, image, has_certificate } = body;
         let { code, description } = body;
 
         // Validation - Minimal required
@@ -79,7 +79,8 @@ export async function POST(request: Request) {
                     topics_count: 0,
                     lessons_count: 0,
                     quizzes_count: 0,
-                    assignments_count: 0
+                    assignments_count: 0,
+                    has_certificate: has_certificate !== false
                 }
             ])
             .select()

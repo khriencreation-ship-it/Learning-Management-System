@@ -92,6 +92,7 @@ export interface Database {
           assignments_count: number
           published_at: string | null
           status: 'active' | 'draft' | 'archived'
+          has_certificate: boolean
         }
         Insert: {
           id?: string
@@ -108,6 +109,7 @@ export interface Database {
           assignments_count?: number
           published_at?: string | null
           status?: 'active' | 'draft' | 'archived'
+          has_certificate?: boolean
         }
         Update: {
           id?: string
@@ -124,6 +126,7 @@ export interface Database {
           assignments_count?: number
           published_at?: string | null
           status?: 'active' | 'draft' | 'archived'
+          has_certificate?: boolean
         }
       }
       cohort_courses: {

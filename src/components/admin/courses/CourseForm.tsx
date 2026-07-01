@@ -25,7 +25,8 @@ export default function CourseForm({ initialData, isEdit = false, courseId }: Co
         title: initialData?.title || '',
         description: initialData?.description || '',
         instructor: initialData?.instructor || '',
-        image: initialData?.image || ''
+        image: initialData?.image || '',
+        has_certificate: initialData ? (initialData.has_certificate !== false) : true
     });
 
     const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
@@ -52,7 +53,14 @@ export default function CourseForm({ initialData, isEdit = false, courseId }: Co
             .catch(err => console.error('Failed to fetch cohorts', err));
 
         if (initialData) {
-
+            setFormData(prev => ({
+                ...prev,
+                title: initialData.title || '',
+                description: initialData.description || '',
+                instructor: initialData.instructor || '',
+                image: initialData.image || '',
+                has_certificate: initialData.has_certificate !== false
+            }));
             if (initialData.course_cohorts) {
                 setSelectedCohorts(initialData.course_cohorts.map((c: any) => c.cohort_id));
             }
@@ -183,6 +191,37 @@ export default function CourseForm({ initialData, isEdit = false, courseId }: Co
                                                 <Plus size={18} className="rotate-45" />
                                             </div>
                                         </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-bold text-gray-700 ml-1">Certificate-based Course</label>
+                                        <div className="flex items-center gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => setFormData({ ...formData, has_certificate: true })}
+                                                className={`flex-1 py-3 px-5 rounded-2xl font-bold text-sm transition-all border ${
+                                                    formData.has_certificate
+                                                        ? 'bg-purple-600 text-white border-purple-600 shadow-md shadow-purple-100'
+                                                        : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                                                }`}
+                                            >
+                                                Yes
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setFormData({ ...formData, has_certificate: false })}
+                                                className={`flex-1 py-3 px-5 rounded-2xl font-bold text-sm transition-all border ${
+                                                    !formData.has_certificate
+                                                        ? 'bg-purple-600 text-white border-purple-600 shadow-md shadow-purple-100'
+                                                        : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                                                }`}
+                                            >
+                                                No
+                                            </button>
+                                        </div>
+                                        <p className="text-[10px] text-gray-400 font-medium ml-1">
+                                            Enable this to allow eligible students (70% progress) to generate certificates. If No, this course won't display in students' Certifications dashboard.
+                                        </p>
                                     </div>
                                 </div>
 

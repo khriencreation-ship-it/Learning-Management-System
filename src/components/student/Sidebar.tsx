@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, PlaySquare, BookOpen, Users, LogOut, LayoutGrid, UserCircle } from 'lucide-react';
+import { Home, PlaySquare, BookOpen, Users, LogOut, LayoutGrid, UserCircle, Award } from 'lucide-react';
 import { logout } from '@/lib/authClient';
 
 interface SidebarProps {
@@ -49,6 +49,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 <NavItem icon={<LayoutGrid size={22} />} label="Cohorts" href="/student/cohorts" active={pathname.startsWith('/student/cohorts')} onClick={handleClose} />
                 <NavItem icon={<BookOpen size={22} />} label="Courses" href="/student/courses" active={pathname.startsWith('/student/courses')} onClick={handleClose} />
                 <NavItem icon={<Users size={22} />} label="Broadcasts" href="/student/broadcasts" active={pathname.startsWith('/student/broadcasts')} onClick={handleClose} />
+                <NavItem icon={<Award size={22} />} label="Certifications" href="/student/certifications" active={pathname.startsWith('/student/certifications')} onClick={handleClose} />
             </nav>
 
             {/* Logout Button */}
