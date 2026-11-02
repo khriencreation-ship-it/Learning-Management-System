@@ -31,9 +31,11 @@ export async function GET(request: Request) {
         // Map Supabase profile fields to desired JSON output
         const formattedUsers = users.map((user: any) => ({
             id: user.id,
-            name: user.full_name,
-            email: user.username,
-            identifier: user.identifier,
+            name: user.full_name || 'Unknown',
+            email: user.username || '',
+            identifier: user.identifier || '',
+            studentId: user.identifier || '',
+            tutorId: user.identifier || '',
             profilePicture: user.avatar_url,
             role: user.role,
             status: user.status,

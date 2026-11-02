@@ -26,13 +26,16 @@ async function getCohort(id: string) {
             .select('profiles(*)', { count: 'exact' })
             .eq('cohort_id', id);
 
-        const students = studentData?.map((item: any) => ({
-            id: item.profiles.id,
-            name: item.profiles.full_name,
-            studentId: item.profiles.identifier,
-            email: item.profiles.username, // Assuming username holds email/contact
-            status: item.profiles.status
-        })) || [];
+        const students = studentData?.map((item: any) => {
+            if (!item.profiles) return null;
+            return {
+                id: item.profiles.id,
+                name: item.profiles.full_name || 'Unknown',
+                studentId: item.profiles.identifier || 'N/A',
+                email: item.profiles.username || '', // Assuming username holds email/contact
+                status: item.profiles.status
+            };
+        }).filter(Boolean) || [];
 
         // Fetch Tutors
         const { data: tutorData, count: tutorsCount } = await supabaseAdmin
@@ -40,12 +43,15 @@ async function getCohort(id: string) {
             .select('profiles(*)', { count: 'exact' })
             .eq('cohort_id', id);
 
-        const tutors = tutorData?.map((item: any) => ({
-            id: item.profiles.id,
-            name: item.profiles.full_name,
-            tutorId: item.profiles.identifier,
-            role: item.profiles.role
-        })) || [];
+        const tutors = tutorData?.map((item: any) => {
+            if (!item.profiles) return null;
+            return {
+                id: item.profiles.id,
+                name: item.profiles.full_name || 'Unknown',
+                tutorId: item.profiles.identifier || 'N/A',
+                role: item.profiles.role
+            };
+        }).filter(Boolean) || [];
 
         // Fetch Courses
         const { data: courseData, count: coursesCount } = await supabaseAdmin
@@ -71,12 +77,15 @@ async function getCohort(id: string) {
             }
         }
 
-        const courses = courseData?.map((item: any) => ({
-            ...item.courses,
-            tutor: item.courses.instructor,
-            settings: item.settings, // Pass the settings to the frontend
-            student_count: courseEnrollmentCounts[item.course_id] || 0
-        })) || [];
+        const courses = courseData?.map((item: any) => {
+            if (!item.courses) return null;
+            return {
+                ...item.courses,
+                tutor: item.courses.instructor,
+                settings: item.settings, // Pass the settings to the frontend
+                student_count: courseEnrollmentCounts[item.course_id] || 0
+            };
+        }).filter(Boolean) || [];
 
         // Combine and cleanup
         const formattedCohort = {

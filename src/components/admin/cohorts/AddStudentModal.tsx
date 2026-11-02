@@ -39,10 +39,14 @@ export default function AddStudentModal({ isOpen, onClose, onAdd, existingStuden
         }
     }, [isOpen]);
 
-    const filteredStudents = allStudents.filter(student =>
-        student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        student.studentId.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredStudents = allStudents.filter(student => {
+        if (!student) return false;
+        const name = (student.name || '').toLowerCase();
+        const studentId = (student.studentId || student.identifier || '').toLowerCase();
+        const email = (student.email || '').toLowerCase();
+        const query = searchQuery.toLowerCase();
+        return name.includes(query) || studentId.includes(query) || email.includes(query);
+    });
 
     const toggleStudent = (id: string) => {
         if (existingStudentIds.includes(id)) return; // Prevent selection of existing students
@@ -129,7 +133,9 @@ export default function AddStudentModal({ isOpen, onClose, onAdd, existingStuden
 
                 {/* List */}
                 <div className="flex-1 overflow-y-auto space-y-2 mb-6 pr-2">
-                    {filteredStudents.length > 0 ? (
+                    {loading ? (
+                        <div className="text-center py-8 text-gray-400 text-sm">Loading students...</div>
+                    ) : filteredStudents.length > 0 ? (
                         filteredStudents.map((student) => {
                             const isSelected = selectedStudents.includes(student.id);
                             const isAlreadyAdded = existingStudentIds.includes(student.id);
@@ -152,11 +158,11 @@ export default function AddStudentModal({ isOpen, onClose, onAdd, existingStuden
                                                     ? 'bg-primary text-white'
                                                     : 'bg-gray-100 text-gray-500'
                                             }`}>
-                                            {student.name.charAt(0)}
+                                            {(student.name || '?').charAt(0)}
                                         </div>
                                         <div>
-                                            <p className={`font-semibold text-sm ${isSelected ? 'text-primary' : 'text-gray-900'}`}>{student.name}</p>
-                                            <p className="text-xs text-gray-500 font-mono">{student.studentId}</p>
+                                            <p className={`font-semibold text-sm ${isSelected ? 'text-primary' : 'text-gray-900'}`}>{student.name || 'Unknown'}</p>
+                                            <p className="text-xs text-gray-500 font-mono">{student.studentId || student.identifier || 'N/A'}</p>
                                         </div>
                                     </div>
                                     {isAlreadyAdded ? (
@@ -188,4 +194,3 @@ export default function AddStudentModal({ isOpen, onClose, onAdd, existingStuden
         </div>
     );
 }
-

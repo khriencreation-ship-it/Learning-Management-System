@@ -28,11 +28,15 @@ export default function StudentsTab({ cohortId, cohortName = "this Cohort", init
         setStudents(initialStudents);
     }, [initialStudents]);
 
-    const filteredStudents = students.filter(student =>
-        student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        student.studentId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        student.email?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredStudents = students.filter(student => {
+        if (!student) return false;
+        const query = searchQuery.toLowerCase();
+        return (
+            (student.name || '').toLowerCase().includes(query) ||
+            (student.studentId || student.identifier || '').toLowerCase().includes(query) ||
+            (student.email || '').toLowerCase().includes(query)
+        );
+    });
 
     const handleDeleteClick = (student: { id: number, name: string }) => {
         setStudentToDelete(student);
@@ -143,15 +147,15 @@ export default function StudentsTab({ cohortId, cohortName = "this Cohort", init
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
                                             <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm">
-                                                {student.name.charAt(0)}
+                                                {(student.name || '?').charAt(0)}
                                             </div>
                                             <div className="flex flex-col">
-                                                <span className="font-medium text-gray-900">{student.name}</span>
+                                                <span className="font-medium text-gray-900">{student.name || 'Unknown'}</span>
                                                 <span className="text-xs text-gray-500">{student.email}</span>
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 text-gray-600 font-mono text-sm">{student.studentId}</td>
+                                    <td className="px-6 py-4 text-gray-600 font-mono text-sm">{student.studentId || student.identifier || 'N/A'}</td>
                                     <td className="px-6 py-4">
                                         <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${student.status === 'Active' || student.status === 'active'
                                             ? 'bg-green-100 text-green-700'

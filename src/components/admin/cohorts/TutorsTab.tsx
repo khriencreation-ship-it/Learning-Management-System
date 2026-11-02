@@ -28,11 +28,15 @@ export default function TutorsTab({ cohortId, cohortName = "this Cohort", initia
         setTutors(initialTutors);
     }, [initialTutors]);
 
-    const filteredTutors = tutors.filter(tutor =>
-        tutor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        tutor.role?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        tutor.tutorId?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredTutors = tutors.filter(tutor => {
+        if (!tutor) return false;
+        const query = searchQuery.toLowerCase();
+        return (
+            (tutor.name || '').toLowerCase().includes(query) ||
+            (tutor.role || '').toLowerCase().includes(query) ||
+            (tutor.tutorId || tutor.identifier || '').toLowerCase().includes(query)
+        );
+    });
 
     const handleDeleteClick = (tutor: { id: number, name: string }) => {
         setTutorToDelete(tutor);
@@ -130,8 +134,8 @@ export default function TutorsTab({ cohortId, cohortName = "this Cohort", initia
                             <div className="w-20 h-20 rounded-full bg-pink-100 flex items-center justify-center text-pink-600 mb-4">
                                 <GraduationCap size={40} />
                             </div>
-                            <h4 className="font-bold text-gray-900 text-lg">{tutor.name}</h4>
-                            <p className="text-gray-400 text-xs font-mono mb-1">{tutor.tutorId}</p>
+                            <h4 className="font-bold text-gray-900 text-lg">{tutor.name || 'Unknown'}</h4>
+                            <p className="text-gray-400 text-xs font-mono mb-1">{tutor.tutorId || tutor.identifier || ''}</p>
                             <p className="text-gray-500 text-sm mb-6">{tutor.role || 'Tutor'}</p>
 
                             <button

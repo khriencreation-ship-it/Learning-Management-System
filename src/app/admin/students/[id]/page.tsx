@@ -32,13 +32,19 @@ async function getStudentFullProfile(id: string) {
             .select('start_date, cohort_id, cohorts(*)')
             .eq('student_id', id);
 
-        const cohorts = cohortAssignments?.map((a: any) => ({
-            id: a.cohorts.id,
-            name: a.cohorts.name,
-            batch: a.cohorts.batch,
-            status: a.cohorts.status,
-            assignedAt: a.start_date ? new Date(a.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'
-        })) || [];
+        const cohortMap = new Map<string, any>();
+        cohortAssignments?.forEach((a: any) => {
+            if (a?.cohorts && !cohortMap.has(a.cohorts.id)) {
+                cohortMap.set(a.cohorts.id, {
+                    id: a.cohorts.id,
+                    name: a.cohorts.name,
+                    batch: a.cohorts.batch,
+                    status: a.cohorts.status,
+                    assignedAt: a.start_date ? new Date(a.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'
+                });
+            }
+        });
+        const cohorts = Array.from(cohortMap.values());
 
         // 3b. (Removed) Cohort-linked courses auto-inclusion removed to favor granular enrollments.
         const enrolledCourseIds: string[] = [];
@@ -46,10 +52,10 @@ async function getStudentFullProfile(id: string) {
 
         // 4. Unique list of enrolled courses (Direct Enrollments)
 
-        // Add direct enrollments
+        // Add direct enrollments (deduplicated by course_id)
         directEnrollments?.forEach(enr => {
             const courseData = Array.isArray(enr.courses) ? enr.courses[0] : enr.courses;
-            if (courseData) {
+            if (courseData && !courseMap.has(enr.course_id)) {
                 courseMap.set(enr.course_id, {
                     ...courseData,
                     enrolledAt: enr.enrolled_at,
@@ -58,8 +64,6 @@ async function getStudentFullProfile(id: string) {
                 enrolledCourseIds.push(enr.course_id);
             }
         });
-
-
 
         // 5. Fetch Full Curriculum and Student Progress
         const [curriculumData, studentProgressData] = await Promise.all([

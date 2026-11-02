@@ -40,7 +40,7 @@ export async function login(credentials: LoginCredentials): Promise<User | null>
                 .single();
 
             if (profileError || !profile || !profile.username) {
-                console.error('Login error: Identifier not found or no email linked');
+                console.warn('Login failed: Identifier not found or no email linked');
                 return null;
             }
 
@@ -56,13 +56,13 @@ export async function login(credentials: LoginCredentials): Promise<User | null>
 
         // If direct email failed, and we didn't try the constructed one yet (i.e. input WAS email)
         if (error && credentials.identifier.includes('@')) {
-            console.error('Login error:', error.message);
+            console.warn('Login failed:', error.message);
             return null;
         } else if (error) {
             // If we constructed an email and it failed, maybe they DID use an email but typed it wrong?
             // Or maybe our constructed email logic is wrong.
             // Let's try to just use the input if the constructed one failed? No, we know it failed.
-            console.error('Login error:', error.message);
+            console.warn('Login failed:', error.message);
             return null;
         }
 
@@ -218,4 +218,3 @@ export function getRoleDashboardRoute(role: UserRole): string {
 
     return routes[role];
 }
-

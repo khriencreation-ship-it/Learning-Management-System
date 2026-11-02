@@ -37,10 +37,14 @@ export default function AddTutorModal({ isOpen, onClose, onAdd, existingTutorIds
         }
     }, [isOpen]);
 
-    const filteredTutors = allTutors.filter(tutor =>
-        tutor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        tutor.spec.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredTutors = allTutors.filter(tutor => {
+        if (!tutor) return false;
+        const query = searchQuery.toLowerCase();
+        return (
+            (tutor.name || '').toLowerCase().includes(query) ||
+            (tutor.spec || tutor.tutorId || tutor.identifier || '').toLowerCase().includes(query)
+        );
+    });
 
     const toggleTutor = (id: string) => {
         if (existingTutorIds.includes(id)) return; // Prevent selection
@@ -123,8 +127,8 @@ export default function AddTutorModal({ isOpen, onClose, onAdd, existingTutorIds
                                             <GraduationCap size={20} />
                                         </div>
                                         <div>
-                                            <p className={`font-semibold text-sm ${isSelected ? 'text-primary' : 'text-gray-900'}`}>{tutor.name}</p>
-                                            <p className="text-xs text-gray-500">{tutor.spec}</p>
+                                            <p className={`font-semibold text-sm ${isSelected ? 'text-primary' : 'text-gray-900'}`}>{tutor.name || 'Unknown'}</p>
+                                            <p className="text-xs text-gray-500">{tutor.spec || tutor.tutorId || tutor.identifier || ''}</p>
                                         </div>
                                     </div>
                                     {isAlreadyAdded ? (
@@ -156,4 +160,3 @@ export default function AddTutorModal({ isOpen, onClose, onAdd, existingTutorIds
         </div>
     );
 }
-
