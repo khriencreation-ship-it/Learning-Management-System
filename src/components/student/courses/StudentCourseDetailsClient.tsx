@@ -9,6 +9,7 @@ import Toast from '@/components/ui/Toast';
 import Link from 'next/link';
 import Image from 'next/image';
 import CurriculumModule from '@/components/admin/courses/CurriculumModule';
+import VideoPlayer from '@/components/common/VideoPlayer';
 import { supabase } from '@/lib/supabase';
 import { notFound } from 'next/navigation';
 
@@ -126,14 +127,9 @@ export default function StudentCourseDetailsClient({ id, cohortId: initialCohort
                                 onClick={() => course.video_url && setIsPlaying(true)}
                             >
                                 {isPlaying && course.video_url ? (
-                                    <video
+                                    <VideoPlayer
                                         src={course.video_url}
-                                        controls
-                                        controlsList="nodownload"
-                                        disablePictureInPicture
-                                        onContextMenu={(e) => e.preventDefault()}
-                                        autoPlay
-                                        className="w-full h-full object-cover"
+                                        className="w-full h-full"
                                         onEnded={() => setIsPlaying(false)}
                                     />
                                 ) : (

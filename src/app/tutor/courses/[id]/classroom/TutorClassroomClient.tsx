@@ -28,7 +28,33 @@ import VideoPlayer from "@/components/common/VideoPlayer";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-// --- Sub-components ---
+const getLessonVideoUrl = (lesson: any): string => {
+    const direct =
+        lesson?.video_url ||
+        lesson?.videoPreview ||
+        lesson?.bunnyUrl ||
+        lesson?.metadata?.bunnyUrl ||
+        lesson?.metadata?.video_url ||
+        lesson?.metadata?.videoPreview;
+    if (direct && typeof direct === 'string' && direct.trim()) {
+        return direct.trim();
+    }
+    const links = lesson?.links || lesson?.metadata?.links || [];
+    for (const link of links) {
+        const url = typeof link === 'string' ? link : link?.url;
+        if (
+            url &&
+            typeof url === 'string' &&
+            (url.includes('b-cdn.net') ||
+                url.includes('bunnycdn.com') ||
+                url.includes('mediadelivery.net') ||
+                /\.(mp4|m3u8|webm|mov)(\?|$)/i.test(url))
+        ) {
+            return url.trim();
+        }
+    }
+    return '';
+};
 
 const CountdownTimer = ({ targetDate, targetTime }: { targetDate: string, targetTime: string }) => {
     const [timeLeft, setTimeLeft] = useState<{ days: number, hours: number, minutes: number, seconds: number } | null>(null);
@@ -82,8 +108,6 @@ const CountdownTimer = ({ targetDate, targetTime }: { targetDate: string, target
     );
 };
 
-// --- Main Component ---
-
 interface TutorClassroomClientProps {
     course: any;
     exitHref?: string;
@@ -96,7 +120,6 @@ export default function TutorClassroomClient({ course, exitHref, isAdmin = false
     const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
     const [searchTerm, setSearchTerm] = useState("");
 
-    // Initialize with first item if available
     useEffect(() => {
         if (course.curriculum && course.curriculum.length > 0) {
             const firstModule = course.curriculum[0];
@@ -134,121 +157,120 @@ export default function TutorClassroomClient({ course, exitHref, isAdmin = false
         )
     })).filter((module: any) => module.items && module.items.length > 0);
 
-    // --- Content Renders ---
-
-    const renderLesson = (lesson: any) => (
-        <div className="flex-1 overflow-y-auto">
-            {/* Video Player */}
-            <div className="w-full aspect-video bg-black relative shadow-2xl overflow-hidden group">
-                {lesson.video_url || lesson.videoPreview ? (
-                    <VideoPlayer
-                        key={lesson.id}
-                        src={lesson.video_url || lesson.videoPreview}
-                        poster={lesson.coverPreview || lesson.poster}
-                        className="w-full h-full"
-                    />
-                ) : (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-white/40 space-y-4 bg-slate-900">
-                        <Play size={64} className="opacity-20 translate-y-2 group-hover:translate-y-0 transition-transform duration-500" />
-                        <p className="font-bold text-lg">No video for this lesson</p>
-                    </div>
-                )}
-            </div>
-
-            <div className="max-w-4xl mx-auto p-8 lg:p-12 space-y-10">
-                <div className="space-y-6">
-                    <div className="flex items-center gap-3">
-                        <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-blue-100">
-                            Lesson
-                        </span>
-                        {lesson.duration && (
-                            <span className="flex items-center gap-1.5 text-gray-400 text-xs font-bold">
-                                <Clock size={14} />
-                                {lesson.duration} mins
-                            </span>
-                        )}
-                    </div>
-                    <h1 className="text-4xl font-black text-gray-900 tracking-tight leading-tight">{lesson.title}</h1>
-                    <div className="prose prose-purple max-w-none">
-                        <p className="text-gray-600 text-lg leading-relaxed font-medium">
-                            {lesson.summary || lesson.description || "No description provided for this lesson."}
-                        </p>
-                    </div>
+    const renderLesson = (lesson: any) => {
+        const videoSrc = getLessonVideoUrl(lesson);
+        return (
+            <div className="flex-1 overflow-y-auto">
+                {/* Video Player */}
+                <div className="w-full aspect-video bg-black relative shadow-2xl overflow-hidden group">
+                    {videoSrc ? (
+                        <VideoPlayer
+                            key={lesson.id}
+                            src={videoSrc}
+                            poster={lesson.coverPreview || lesson.poster}
+                            className="w-full h-full"
+                        />
+                    ) : (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-white/40 space-y-4 bg-slate-900">
+                            <Play size={64} className="opacity-20 translate-y-2 group-hover:translate-y-0 transition-transform duration-500" />
+                            <p className="font-bold text-lg">No video for this lesson</p>
+                        </div>
+                    )}
                 </div>
 
-                {/* Materials */}
-                {(lesson.links?.length > 0 || lesson.files?.length > 0) && (
-                    <div className="space-y-6 pt-10 border-t border-gray-100">
-                        <h3 className="text-2xl font-black text-gray-900 flex items-center gap-3">
-                            <Download className="text-primary" />
-                            Lesson Materials
-                        </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                            {lesson.files?.map((file: any, i: number) => (
-                                <a
-                                    key={i}
-                                    href={file.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center justify-between p-5 bg-gray-50 rounded-3xl border border-transparent hover:border-primary hover:bg-white transition-all group shadow-sm hover:shadow-xl hover:shadow-purple-900/5"
-                                >
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-primary shadow-sm group-hover:scale-110 transition-transform duration-300">
-                                            <Download size={24} />
-                                        </div>
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-black text-gray-900 truncate">{file.name}</p>
-                                            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Download Attachment</p>
-                                        </div>
-                                    </div>
-                                    <ChevronRight size={18} className="text-gray-300 group-hover:text-primary group-hover:translate-x-1 transition-all" />
-                                </a>
-                            ))}
-                            {lesson.links?.map((link: any, i: number) => {
-                                let url = typeof link === 'string' ? link : link.url;
-                                // Ensure absolute URL
-                                if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
-                                    url = `https://${url}`;
-                                }
-                                const title = typeof link === 'string' ? 'External Resource' : (link.title || link.name || 'External Resource');
-                                return (
+                <div className="max-w-4xl mx-auto p-8 lg:p-12 space-y-10">
+                    <div className="space-y-6">
+                        <div className="flex items-center gap-3">
+                            <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-blue-100">
+                                Lesson
+                            </span>
+                            {lesson.duration && (
+                                <span className="flex items-center gap-1.5 text-gray-400 text-xs font-bold">
+                                    <Clock size={14} />
+                                    {lesson.duration} mins
+                                </span>
+                            )}
+                        </div>
+                        <h1 className="text-4xl font-black text-gray-900 tracking-tight leading-tight">{lesson.title}</h1>
+                        <div className="prose prose-purple max-w-none">
+                            {lesson.summary || lesson.description ? (
+                                <div dangerouslySetInnerHTML={{ __html: lesson.summary || lesson.description }} className="text-gray-600 text-lg leading-relaxed font-medium" />
+                            ) : (
+                                <p className="text-gray-400 italic">No description provided for this lesson.</p>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Materials */}
+                    {(lesson.links?.length > 0 || lesson.files?.length > 0) && (
+                        <div className="space-y-6 pt-10 border-t border-gray-100">
+                            <h3 className="text-2xl font-black text-gray-900 flex items-center gap-3">
+                                <Download className="text-primary" />
+                                Lesson Materials
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                {lesson.files?.map((file: any, i: number) => (
                                     <a
                                         key={i}
-                                        href={url}
+                                        href={file.url}
                                         target="_blank"
                                         rel="noopener noreferrer"
-
                                         className="flex items-center justify-between p-5 bg-gray-50 rounded-3xl border border-transparent hover:border-primary hover:bg-white transition-all group shadow-sm hover:shadow-xl hover:shadow-purple-900/5"
                                     >
                                         <div className="flex items-center gap-4">
-                                            <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-blue-600 shadow-sm group-hover:scale-110 transition-transform duration-300">
-                                                <ExternalLink size={24} />
+                                            <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-primary shadow-sm group-hover:scale-110 transition-transform duration-300">
+                                                <Download size={24} />
                                             </div>
                                             <div className="min-w-0">
-                                                <p className="text-sm font-black text-gray-900 truncate">{title}</p>
-                                                <p className="text-[10px] text-gray-400 font-medium truncate">{url}</p>
+                                                <p className="text-sm font-black text-gray-900 truncate">{file.name}</p>
+                                                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Download Attachment</p>
                                             </div>
                                         </div>
-                                        <ChevronRight size={18} className="text-gray-300 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+                                        <ChevronRight size={18} className="text-gray-300 group-hover:text-primary group-hover:translate-x-1 transition-all" />
                                     </a>
-                                );
-                            })}
+                                ))}
+                                {lesson.links?.map((link: any, i: number) => {
+                                    let url = typeof link === 'string' ? link : link.url;
+                                    if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+                                        url = `https://${url}`;
+                                    }
+                                    const title = typeof link === 'string' ? 'External Resource' : (link.title || link.name || 'External Resource');
+                                    return (
+                                        <a
+                                            key={i}
+                                            href={url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center justify-between p-5 bg-gray-50 rounded-3xl border border-transparent hover:border-primary hover:bg-white transition-all group shadow-sm hover:shadow-xl hover:shadow-purple-900/5"
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-blue-600 shadow-sm group-hover:scale-110 transition-transform duration-300">
+                                                    <ExternalLink size={24} />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-black text-gray-900 truncate">{title}</p>
+                                                    <p className="text-[10px] text-gray-400 font-medium truncate">{url}</p>
+                                                </div>
+                                            </div>
+                                            <ChevronRight size={18} className="text-gray-300 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+                                        </a>
+                                    );
+                                })}
 
+                            </div>
                         </div>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
-        </div>
-    );
+        );
+    };
 
     const renderLiveClass = (liveClass: any) => {
         const isPast = new Date(`${liveClass.date}T${liveClass.time}`).getTime() < new Date().getTime();
 
         return (
             <div className="flex-1 overflow-y-auto">
-                {/* Hero Header for Live Class */}
                 <div className="w-full min-h-[400px] bg-slate-900 relative flex items-center justify-center px-6 py-12 overflow-hidden">
-                    {/* Abstract background */}
                     <div className="absolute inset-0 opacity-20 pointer-events-none select-none">
                         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-600 blur-[120px] rounded-full" />
                         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-600 blur-[120px] rounded-full" />
@@ -337,7 +359,6 @@ export default function TutorClassroomClient({ course, exitHref, isAdmin = false
     const renderQuiz = (quiz: any) => (
         <div className="flex-1 overflow-y-auto">
             <div className="max-w-4xl mx-auto p-12 space-y-12">
-                {/* Header Card */}
                 <div className="p-10 bg-gradient-to-br from-emerald-600 to-teal-700 rounded-[3rem] text-white shadow-2xl shadow-emerald-900/20 relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-12 opacity-10 pointer-events-none">
                         <CheckSquare size={160} />
@@ -424,7 +445,6 @@ export default function TutorClassroomClient({ course, exitHref, isAdmin = false
     const renderAssignment = (assignment: any) => (
         <div className="flex-1 overflow-y-auto">
             <div className="max-w-4xl mx-auto p-12 space-y-12">
-                {/* Header Card */}
                 <div className="p-12 bg-gradient-to-br from-orange-500 to-rose-600 rounded-[3rem] text-white shadow-2xl shadow-orange-900/20 relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-12 opacity-10 pointer-events-none">
                         <FileText size={160} />
@@ -454,7 +474,6 @@ export default function TutorClassroomClient({ course, exitHref, isAdmin = false
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-                    {/* Left: Content & Attachments */}
                     <div className="lg:col-span-2 space-y-12">
                         <div className="space-y-6">
                             <h3 className="text-2xl font-black text-gray-900 flex items-center gap-3">
@@ -500,7 +519,6 @@ export default function TutorClassroomClient({ course, exitHref, isAdmin = false
                         )}
                     </div>
 
-                    {/* Right: Submission Info & Mock Upload */}
                     <div className="space-y-8">
                         <div className="sticky top-8 space-y-6">
                             <div className="p-8 bg-white border border-gray-100 rounded-[3rem] shadow-xl shadow-gray-200/40 space-y-8">
@@ -572,7 +590,6 @@ export default function TutorClassroomClient({ course, exitHref, isAdmin = false
     return (
         <DashboardLayout hideSidebar={true} hideHeader={true} allowAdmin={isAdmin}>
             <div className="flex h-screen overflow-hidden bg-white">
-
                 {/* Left Sidebar - Curriculum Selection */}
                 <div className="w-96 border-r border-gray-100 flex flex-col bg-gray-50/20 sticky top-0 h-screen overflow-hidden">
                     <div className="p-8 border-b border-gray-100 bg-white space-y-6">
@@ -630,7 +647,6 @@ export default function TutorClassroomClient({ course, exitHref, isAdmin = false
                                                 onClick={() => setSelectedItem(item)}
                                                 className={`w-full flex items-center p-4 rounded-2xl transition-all relative overflow-hidden group ${selectedItem?.id === item.id ? 'bg-primary text-white shadow-xl shadow-purple-900/10' : 'hover:bg-white text-gray-600 hover:shadow-md'}`}
                                             >
-                                                {/* Active background glow */}
                                                 {selectedItem?.id === item.id && (
                                                     <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 translate-x-[-100%] animate-[shimmer_2s_infinite]" />
                                                 )}
@@ -654,7 +670,6 @@ export default function TutorClassroomClient({ course, exitHref, isAdmin = false
                         ))}
                     </div>
                 </div>
-
 
                 {/* Right Content Area */}
                 <div className="flex-1 flex flex-col min-w-0 bg-white">

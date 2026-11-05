@@ -9,6 +9,7 @@ import Toast from '@/components/ui/Toast';
 import Link from 'next/link';
 import Image from 'next/image';
 import CurriculumModule from '@/components/admin/courses/CurriculumModule';
+import VideoPlayer from '@/components/common/VideoPlayer';
 
 interface TutorCourseDetailsClientProps {
     course: any;
@@ -97,14 +98,9 @@ export default function TutorCourseDetailsClient({ course: initialCourse }: Tuto
                                 }}
                             >
                                 {isPlaying && course.video_url ? (
-                                    <video
+                                    <VideoPlayer
                                         src={course.video_url}
-                                        controls
-                                        controlsList="nodownload"
-                                        disablePictureInPicture
-                                        onContextMenu={(e) => e.preventDefault()}
-                                        autoPlay
-                                        className="w-full h-full object-cover"
+                                        className="w-full h-full"
                                         onEnded={() => setIsPlaying(false)}
                                     />
                                 ) : (

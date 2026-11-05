@@ -59,14 +59,17 @@ export default function CourseBuilderModal({ isOpen, onClose, courseId, courseTi
                     ...module,
                     lessons: module.module_items || module.items ? (module.module_items || module.items).map((item: any) => {
                         const meta = item.metadata || {};
+                        const resolvedVideoUrl = item.video_url || meta.video_url || meta.videoPreview || meta.bunnyUrl || '';
                         return {
                             ...item,
                             ...meta, // Spread metadata first (so ID/Title aren't overwritten if collision, though unlikely)
+                            metadata: meta,
                             id: item.id,
                             name: item.title, // Map title to name for LessonForm
                             description: item.summary, // Map summary to description for LessonForm
                             // Map specific metadata fields if they aren't at top level in DB but are in metadata
-                            videoPreview: item.video_url || meta.videoPreview,
+                            video_url: resolvedVideoUrl,
+                            videoPreview: resolvedVideoUrl,
                             links: meta.links || [],
                             files: meta.files || [],
                             // Ensure type is set correctly

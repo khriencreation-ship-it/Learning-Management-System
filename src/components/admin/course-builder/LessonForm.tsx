@@ -4,6 +4,7 @@ import { Upload, FileText, X, Lock, Calendar, Clock, Image as ImageIcon, Video }
 import { useState } from 'react';
 import MediaPickerModal from '../media/MediaPickerModal';
 import RichTextEditor from '@/components/ui/RichTextEditor';
+import VideoPlayer from '@/components/common/VideoPlayer';
 
 interface LessonFormProps {
     onSave: (lessonData: any) => void;
@@ -30,8 +31,22 @@ export default function LessonForm({ onSave, onCancel, initialData, isEditing = 
     const [unlockDate, setUnlockDate] = useState(initialData?.unlockDate || '');
     const [unlockTime, setUnlockTime] = useState(initialData?.unlockTime || '');
 
-    const [videoType, setVideoType] = useState<'internal' | 'bunny'>(initialData?.metadata?.videoType || (initialData?.video_url?.includes('b-cdn.net') ? 'bunny' : 'internal'));
-    const [bunnyUrl, setBunnyUrl] = useState(initialData?.metadata?.bunnyUrl || (initialData?.video_url?.includes('b-cdn.net') ? initialData.video_url : ''));
+    const existingVideoUrl =
+        initialData?.metadata?.bunnyUrl ||
+        initialData?.bunnyUrl ||
+        initialData?.video_url ||
+        initialData?.videoPreview ||
+        '';
+    const isBunnySource =
+        initialData?.metadata?.videoType === 'bunny' ||
+        initialData?.videoType === 'bunny' ||
+        existingVideoUrl.includes('b-cdn.net') ||
+        existingVideoUrl.includes('bunnycdn.com') ||
+        existingVideoUrl.includes('mediadelivery.net') ||
+        existingVideoUrl.includes('.m3u8');
+
+    const [videoType, setVideoType] = useState<'internal' | 'bunny'>(isBunnySource ? 'bunny' : 'internal');
+    const [bunnyUrl, setBunnyUrl] = useState(isBunnySource ? existingVideoUrl : (initialData?.metadata?.bunnyUrl || ''));
 
     const [isPickerOpen, setIsPickerOpen] = useState(false);
     const [pickerTarget, setPickerTarget] = useState<'video' | 'cover' | 'file' | null>(null);
@@ -95,12 +110,15 @@ export default function LessonForm({ onSave, onCancel, initialData, isEditing = 
 
     const handleSubmit = () => {
         const playbackTime = `${lessonPlaybackHours.padStart(2, '0')}:${lessonPlaybackMinutes.padStart(2, '0')}:${lessonPlaybackSeconds.padStart(2, '0')}`;
+        const trimmedBunny = bunnyUrl.trim();
+        const finalVideoUrl = videoType === 'bunny' ? trimmedBunny : (lessonVideoPreview || trimmedBunny);
+
         onSave({
             name: lessonName,
             description: lessonDescription,
-            video: lessonVideo,
-            videoPreview: videoType === 'bunny' ? bunnyUrl : lessonVideoPreview,
-            video_url: videoType === 'bunny' ? bunnyUrl : lessonVideoPreview,
+            video: videoType === 'bunny' ? null : lessonVideo,
+            videoPreview: finalVideoUrl,
+            video_url: finalVideoUrl,
             coverImage: lessonCoverImage,
             coverPreview: lessonCoverPreview,
             playbackTime,
@@ -112,9 +130,11 @@ export default function LessonForm({ onSave, onCancel, initialData, isEditing = 
             hasUnlockDate,
             unlockDate,
             unlockTime,
+            videoType,
+            bunnyUrl: trimmedBunny,
             metadata: {
                 videoType,
-                bunnyUrl,
+                bunnyUrl: trimmedBunny,
                 coverPreview: lessonCoverPreview
             }
         });
@@ -173,32 +193,34 @@ export default function LessonForm({ onSave, onCancel, initialData, isEditing = 
                         <div className="relative group">
                             <Video className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-orange-500 transition-colors" size={18} />
                             <input
-                                type="url"
+                                type="text"
                                 value={bunnyUrl}
                                 onChange={(e) => setBunnyUrl(e.target.value)}
-                                placeholder="Paste Bunny.net .m3u8 URL or ID"
+                                placeholder="Paste Bunny.net Direct Play, Embed, MP4, or HLS (.m3u8) URL"
                                 className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 transition-all"
                             />
                         </div>
                         <p className="text-[10px] text-gray-500 font-medium">
-                            Tip: Use the <span className="font-bold text-orange-600">HLS Playlist URL</span> from your Bunny.net Stream library for best results.
+                            Supports <span className="font-bold text-orange-600">Direct Play URL</span>, <span className="font-bold text-orange-600">Embed URL</span>, <span className="font-bold text-orange-600">HLS Playlist (.m3u8)</span>, or <span className="font-bold text-orange-600">Direct MP4</span> links from Bunny.net.
                         </p>
+                        {bunnyUrl.trim() && (
+                            <div className="border rounded-xl p-2 bg-white">
+                                <VideoPlayer
+                                    src={bunnyUrl.trim()}
+                                    poster={lessonCoverPreview || undefined}
+                                    className="w-full aspect-video max-h-56"
+                                />
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <div>
                         {lessonVideoPreview ? (
                             <div className="border rounded-lg p-2 bg-white space-y-2">
-                                <video
+                                <VideoPlayer
                                     src={lessonVideoPreview}
                                     poster={lessonCoverPreview || undefined}
-                                    controls
-                                    controlsList="nodownload"
-                                    disablePictureInPicture
-                                    onContextMenu={(e) => e.preventDefault()}
-                                    playsInline
-                                    preload="metadata"
-                                    className="w-full max-h-48 rounded bg-black"
-                                    onError={(e) => console.error("Lesson video load error:", e)}
+                                    className="w-full aspect-video max-h-48"
                                 />
                                 {!lessonCoverPreview && (
                                     <button

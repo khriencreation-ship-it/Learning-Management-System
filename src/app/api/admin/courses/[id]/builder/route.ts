@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
@@ -11,10 +10,10 @@ function generateMeetLink() {
 
 export async function POST(
     req: NextRequest,
-    { params }: { params: Promise<{ id: string }> } // params is a Promise in Next.js 15+ usually, depending on version. Assuming standard Next 14/15 pattern.
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { id } = await params; // Await params if it's a promise, safe for recent Next.js versions
+        const { id } = await params;
         const courseId = id;
         const body = await req.json();
         const { modules, courseSettings } = body;
@@ -96,7 +95,6 @@ export async function POST(
         }
 
         if (!modules || !Array.isArray(modules)) {
-            // It's possible we only wanted to save settings? For now assume modules are required or at least empty array
             if (!modules && courseSettings) {
                 return NextResponse.json({ success: true });
             }
@@ -122,7 +120,6 @@ export async function POST(
         console.log('Incoming Item IDs:', incomingItemIds);
 
         // 1a. Delete items that are no longer in the curriculum
-        // We first need to know all modules belonging to this course to scope the item deletion
         const { data: currentModules } = await supabaseAdmin
             .from('course_modules')
             .select('id')
@@ -131,14 +128,12 @@ export async function POST(
         const currentModuleIds = currentModules?.map(m => m.id) || [];
 
         if (currentModuleIds.length > 0) {
-            // Delete items not in incoming list
             const itemDeleteQuery = supabaseAdmin
                 .from('module_items')
                 .delete()
                 .in('module_id', currentModuleIds);
             
             if (incomingItemIds.length > 0) {
-                // PostgREST expects parentheses for 'in' filters
                 itemDeleteQuery.not('id', 'in', `(${incomingItemIds.join(',')})`);
             }
 
@@ -174,7 +169,6 @@ export async function POST(
                 order_index: mIndex
             };
 
-            // If it's a valid UUID, include it for upsert
             if (module.id && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(module.id)) {
                 modulePayload.id = module.id;
             }
@@ -254,9 +248,27 @@ export async function POST(
                         metadata.meetingLink = meetingLink;
                     } else {
                         // Lesson
+                        const resolvedVideoUrl =
+                            item.video_url ||
+                            item.videoPreview ||
+                            item.bunnyUrl ||
+                            item.metadata?.bunnyUrl ||
+                            item.metadata?.video_url ||
+                            item.metadata?.videoPreview ||
+                            '';
+                        const isBunny =
+                            item.videoType === 'bunny' ||
+                            item.metadata?.videoType === 'bunny' ||
+                            resolvedVideoUrl.includes('b-cdn.net') ||
+                            resolvedVideoUrl.includes('bunnycdn.com') ||
+                            resolvedVideoUrl.includes('mediadelivery.net') ||
+                            resolvedVideoUrl.includes('.m3u8');
+
                         metadata.video = item.video;
-                        metadata.videoPreview = item.videoPreview || item.video_url;
-                        metadata.video_url = item.video_url || item.videoPreview;
+                        metadata.videoPreview = resolvedVideoUrl;
+                        metadata.video_url = resolvedVideoUrl;
+                        metadata.videoType = isBunny ? 'bunny' : (item.videoType || item.metadata?.videoType || 'internal');
+                        metadata.bunnyUrl = item.bunnyUrl || item.metadata?.bunnyUrl || (isBunny ? resolvedVideoUrl : '');
                         metadata.coverPreview = item.coverPreview;
                         metadata.playbackHours = item.playbackHours;
                         metadata.playbackMinutes = item.playbackMinutes;
@@ -269,7 +281,6 @@ export async function POST(
                     // Attempt to calculate duration in minutes for the DB column
                     let duration = item.duration || 0;
                     if (!duration && item.playbackTime) {
-                        // Parse "HH:MM:SS"
                         const parts = item.playbackTime.split(':');
                         if (parts.length === 3) {
                             const h = parseInt(parts[0]) || 0;
@@ -286,13 +297,12 @@ export async function POST(
                         title: item.title || item.name || 'Untitled',
                         summary: item.summary || item.description || '',
                         content: item.content || '',
-                        video_url: item.videoPreview || item.video_url || '',
+                        video_url: metadata.video_url || item.videoPreview || item.video_url || '',
                         order_index: iIndex,
                         duration: duration,
                         metadata: metadata
                     };
 
-                    // If it's a valid UUID, include it for upsert
                     if (item.id && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(item.id)) {
                         itemPayload.id = item.id;
                     }
@@ -321,7 +331,7 @@ export async function POST(
                 const type = item.type;
                 if (type === 'quiz') quizzesCount++;
                 else if (type === 'assignment') assignmentsCount++;
-                else lessonsCount++; // lesson, live_class, etc.
+                else lessonsCount++;
             });
         });
 
@@ -339,7 +349,6 @@ export async function POST(
 
         if (metricsError) {
             console.error('Error updating course metrics:', metricsError);
-            // We don't throw here to avoid failing the whole save, as the curriculum is already saved
         }
 
         console.log('--- BUILDER SAVE SUCCESS ---');
@@ -347,7 +356,6 @@ export async function POST(
 
     } catch (error: any) {
         console.error('SERVER ERROR saving curriculum:', error);
-        // Log detailed Supabase error if available
         if (error?.code) console.error('Error Code:', error.code);
         if (error?.details) console.error('Error Details:', error.details);
         if (error?.message) console.error('Error Message:', error.message);
@@ -376,8 +384,6 @@ export async function GET(
 
         if (modulesError) throw modulesError;
 
-        // Fetch Items for all modules (or could be separate queries)
-        // Ideally we fetch items for each module or one big query
         const enrichedModules = await Promise.all(modules.map(async (m) => {
             const { data: items, error: itemsError } = await supabaseAdmin
                 .from('module_items')
@@ -387,15 +393,13 @@ export async function GET(
 
             if (itemsError) return { ...m, lessons: [] };
 
-            // Map DB items back to Frontend structure
             const mappedItems = items?.map(item => {
                 const meta = item.metadata || {};
-                // Common fields
                 const base = {
                     id: item.id,
                     title: item.title,
-                    name: item.title, // Frontend uses name for lessons sometimes
-                    type: item.type === 'live-class' ? 'live_class' : item.type, // Map back hyphen
+                    name: item.title,
+                    type: item.type === 'live-class' ? 'live_class' : item.type,
                     summary: item.summary,
                     hasUnlockDate: meta.hasUnlockDate,
                     unlockDate: meta.unlockDate,
@@ -405,14 +409,13 @@ export async function GET(
                     closeTime: meta.closeTime
                 };
 
-                // Specifics
                 if (item.type === 'live-class') {
                     return {
                         ...base,
                         description: meta.description || item.summary,
                         date: meta.date,
                         time: meta.time,
-                        duration: item.duration, // Should we store duration in DB column? Schema has duration. Use it.
+                        duration: item.duration,
                         platform: meta.platform,
                         meetingLink: meta.meetingLink
                     };
@@ -428,7 +431,7 @@ export async function GET(
                 } else if (item.type === 'assignment') {
                     return {
                         ...base,
-                        content: item.content, // Main column
+                        content: item.content,
                         attachments: meta.attachments,
                         timeLimit: meta.timeLimit,
                         timeUnit: meta.timeUnit || 'weeks',
@@ -440,13 +443,15 @@ export async function GET(
                         maxResubmissionAttempts: meta.maxResubmissionAttempts
                     };
                 } else {
-                    // Lesson
+                    const resolvedVideoUrl = item.video_url || meta.video_url || meta.videoPreview || meta.bunnyUrl || '';
                     return {
                         ...base,
                         description: item.summary,
                         video: meta.video,
-                        videoPreview: meta.videoPreview || item.video_url,
-                        video_url: item.video_url,
+                        videoPreview: resolvedVideoUrl,
+                        video_url: resolvedVideoUrl,
+                        videoType: meta.videoType,
+                        bunnyUrl: meta.bunnyUrl,
                         coverPreview: meta.coverPreview,
                         files: meta.files || [],
                         links: meta.links || [],

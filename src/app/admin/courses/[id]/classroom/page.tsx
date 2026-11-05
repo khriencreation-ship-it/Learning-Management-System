@@ -36,8 +36,10 @@ async function getCourse(id: string) {
                     return {
                         ...item,
                         ...meta,
+                        metadata: meta,
                         title: item.title,
-                        summary: item.summary
+                        summary: item.summary,
+                        video_url: item.video_url || meta.video_url || meta.videoPreview || meta.bunnyUrl || ''
                     };
                 })
             }));

@@ -54,6 +54,7 @@ export default function CourseBuilderPageClient({ courseId, courseTitle, initial
                 ...module,
                 lessons: module.module_items || module.items ? (module.module_items || module.items).map((item: any) => {
                     const meta = item.metadata || {};
+                    const resolvedVideoUrl = item.video_url || meta.video_url || meta.videoPreview || meta.bunnyUrl || '';
                     return {
                         ...item,
                         ...meta,
@@ -61,7 +62,8 @@ export default function CourseBuilderPageClient({ courseId, courseTitle, initial
                         id: item.id,
                         name: item.title,
                         description: item.summary,
-                        videoPreview: item.video_url || meta.videoPreview,
+                        video_url: resolvedVideoUrl,
+                        videoPreview: resolvedVideoUrl,
                         links: meta.links || [],
                         files: meta.files || [],
                         type: item.type === 'live-class' ? 'live_class' : (item.type || 'lesson')

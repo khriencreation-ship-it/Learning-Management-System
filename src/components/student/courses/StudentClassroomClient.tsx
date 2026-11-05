@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -15,6 +14,34 @@ import { useToast } from "@/hooks/useToast";
 import StudentQuizView from './StudentQuizView';
 import StudentAssignmentView from './StudentAssignmentView';
 import VideoPlayer from "@/components/common/VideoPlayer";
+
+const getLessonVideoUrl = (lesson: any): string => {
+    const direct =
+        lesson?.video_url ||
+        lesson?.videoPreview ||
+        lesson?.bunnyUrl ||
+        lesson?.metadata?.bunnyUrl ||
+        lesson?.metadata?.video_url ||
+        lesson?.metadata?.videoPreview;
+    if (direct && typeof direct === 'string' && direct.trim()) {
+        return direct.trim();
+    }
+    const links = lesson?.links || lesson?.metadata?.links || [];
+    for (const link of links) {
+        const url = typeof link === 'string' ? link : link?.url;
+        if (
+            url &&
+            typeof url === 'string' &&
+            (url.includes('b-cdn.net') ||
+                url.includes('bunnycdn.com') ||
+                url.includes('mediadelivery.net') ||
+                /\.(mp4|m3u8|webm|mov)(\?|$)/i.test(url))
+        ) {
+            return url.trim();
+        }
+    }
+    return '';
+};
 
 const CountdownTimer = ({ targetDate, targetTime }: { targetDate: string, targetTime: string }) => {
     const [timeLeft, setTimeLeft] = useState<{ days: number, hours: number, minutes: number, seconds: number } | null>(null);
@@ -69,7 +96,6 @@ const CountdownTimer = ({ targetDate, targetTime }: { targetDate: string, target
 };
 
 const isItemLocked = (item: any) => {
-    // Check both spread metadata and nested metadata object for robustness
     const hasUnlockDate = item.hasUnlockDate ?? item.metadata?.hasUnlockDate;
     const unlockDate = item.unlockDate ?? item.metadata?.unlockDate;
     const unlockTime = item.unlockTime ?? item.metadata?.unlockTime;
@@ -78,12 +104,8 @@ const isItemLocked = (item: any) => {
     
     try {
         const timeStr = unlockTime || "00:00";
-        // Create date object. Adding :00 because some mobile browsers require HH:mm:ss
         const unlockDateTime = new Date(`${unlockDate}T${timeStr}:00`);
-        
-        // If date is invalid, we don't lock
         if (isNaN(unlockDateTime.getTime())) return false;
-        
         return unlockDateTime.getTime() > new Date().getTime();
     } catch (e) {
         console.error("Lock calculation error:", e);
@@ -115,7 +137,6 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
     // Initialize with first item or deep linked item
     useEffect(() => {
         if (course.curriculum && course.curriculum.length > 0) {
-            // Priority 1: Deep Link
             if (deepLinkId) {
                 for (const module of course.curriculum) {
                     const item = module.items?.find((i: any) => i.id === deepLinkId);
@@ -127,7 +148,6 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
                 }
             }
 
-            // Priority 2: First item (if not already selected)
             if (!selectedItem) {
                 const firstModule = course.curriculum[0];
                 if (firstModule.items && firstModule.items.length > 0) {
@@ -158,7 +178,6 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
                     const completed = new Set<string>(data.filter((p: any) => p.is_completed).map((p: any) => p.item_id));
                     setCompletedItems(completed);
                     
-                    // Initialize video progress
                     const vProg: any = {};
                     data.forEach((p: any) => {
                         if (p.last_watched_second !== undefined) {
@@ -180,10 +199,8 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
     }, [course.id, cohortId]);
 
     const toggleComplete = async (itemId: string, currentStatus: boolean, trackingData?: { last: number, max: number }) => {
-        // Fix: If it's tracking data (auto-sync), we should NEVER unmark as completed
         const newStatus = trackingData ? (currentStatus || false) : !currentStatus;
 
-        // Optimistic update if manually toggled
         if (!trackingData) {
             setCompletedItems(prev => {
                 const next = new Set(prev);
@@ -221,7 +238,6 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
             console.error(error);
             if (!trackingData) {
                 showToast('Failed to save progress', 'error');
-                // Revert
                 setCompletedItems(prev => {
                     const next = new Set(prev);
                     if (currentStatus) next.add(itemId);
@@ -233,12 +249,10 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
     };
 
     const handleJoinLiveClass = async (liveClass: any) => {
-        // Mark as completed/attended if not already done
         if (!completedItems.has(liveClass.id)) {
             await toggleComplete(liveClass.id, false);
         }
         
-        // Open meeting link in a new tab
         if (liveClass.meetingLink) {
             window.open(liveClass.meetingLink, '_blank', 'noopener,noreferrer');
         } else {
@@ -273,8 +287,6 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
         setVideoProgress(prev => {
             const current = prev[lessonId] || { last: 0, max: 0, duration: 0 };
             
-            // Update max only if they are watching naturally
-            // We allow a larger buffer (10s) for natural playback/frame drops
             let newMax = current.max;
             if (currentTime > current.max && currentTime <= current.max + 10) {
                 newMax = currentTime;
@@ -284,13 +296,11 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
 
             const updated = { last: currentTime, max: newMax, duration };
             
-            // Auto-complete at 90%
             if (!completedItems.has(lessonId) && (newMax / duration) >= 0.9) {
-                toggleComplete(lessonId, true, updated); // FIX: Should be true to mark as complete
+                toggleComplete(lessonId, true, updated);
                 setCompletedItems(p => new Set(p).add(lessonId));
             }
 
-            // Sync to DB every 15 seconds
             const now = Date.now();
             if (now - lastSyncTime.current > 15000) {
                 lastSyncTime.current = now;
@@ -305,7 +315,6 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
         const video = e.target;
         const progress = videoProgress[lessonId];
         
-        // If trying to skip forward beyond what was watched (Allowed 12s tolerance for power nudge)
         if (progress && video.currentTime > progress.max + 12) {
             video.currentTime = progress.max;
             showToast("You can only skip ahead to parts you've already watched.", "warning");
@@ -315,23 +324,27 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
     const handleLoadedMetadata = (e: any, lessonId: string) => {
         const video = e.target;
         const savedProgress = videoProgress[lessonId];
-        if (savedProgress && savedProgress.last > 0) {
+        if (savedProgress && savedProgress.last > 0 && video.currentTime !== undefined) {
             video.currentTime = savedProgress.last;
         }
     };
+
     const renderLesson = (lesson: any) => {
         const progress = videoProgress[lesson.id] || { last: 0, max: 0, duration: 0 };
         const isComplete = completedItems.has(lesson.id);
         const unlockedPercentage = progress.duration ? (progress.max / progress.duration) * 100 : 0;
+        const videoSrc = getLessonVideoUrl(lesson);
+        const isEmbed = /(?:(?:[a-z0-9-]+\.)?mediadelivery\.net|video\.bunnycdn\.com)\/(?:play|embed)\//i.test(videoSrc) || videoSrc.includes('<iframe');
+        const isMarkCompleteDisabled = !isComplete && !isEmbed && (!progress.duration || progress.max < progress.duration * 0.9);
         
         return (
             <div className="flex-1 overflow-y-auto">
                 {/* Video Player */}
                 <div className="w-full aspect-video bg-black relative shadow-2xl overflow-hidden group">
-                    {lesson.video_url || lesson.videoPreview ? (
+                    {videoSrc ? (
                         <VideoPlayer
                             key={lesson.id}
-                            src={lesson.video_url || lesson.videoPreview}
+                            src={videoSrc}
                             poster={lesson.coverPreview}
                             onTimeUpdate={(e) => handleTimeUpdate(e, lesson.id)}
                             onLoadedMetadata={(e) => handleLoadedMetadata(e, lesson.id)}
@@ -382,13 +395,13 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
                         <div className="flex flex-col items-end gap-2">
                             <button
                                 onClick={() => toggleComplete(lesson.id, isComplete)}
-                                disabled={!isComplete && (!progress.duration || progress.max < progress.duration * 0.9)}
+                                disabled={isMarkCompleteDisabled}
                                 className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all ${isComplete
                                     ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
                                     : progress.max > 0 
                                         ? 'bg-primary/10 text-primary hover:bg-primary/20'
                                         : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                                    } ${(!isComplete && (!progress.duration || progress.max < progress.duration * 0.9)) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    } ${isMarkCompleteDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                                 {isComplete ? (
                                     <>
@@ -472,7 +485,6 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
             <div className="flex-1 overflow-y-auto">
                 {/* Hero Header for Live Class */}
                 <div className="w-full min-h-[400px] bg-slate-900 relative flex items-center justify-center px-6 py-12 overflow-hidden">
-                    {/* Abstract background */}
                     <div className="absolute inset-0 opacity-20 pointer-events-none select-none">
                         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-600 blur-[120px] rounded-full" />
                         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-600 blur-[120px] rounded-full" />
@@ -571,9 +583,7 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
 
         return (
             <div className="flex-1 overflow-y-auto bg-white">
-                {/* Hero Header for Locked Content */}
                 <div className="w-full min-h-[400px] bg-slate-900 relative flex items-center justify-center px-6 py-12 overflow-hidden">
-                    {/* Abstract background */}
                     <div className="absolute inset-0 opacity-20 pointer-events-none select-none">
                         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-600 blur-[120px] rounded-full" />
                         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-600 blur-[120px] rounded-full" />
@@ -762,7 +772,7 @@ export default function StudentClassroomClient({ course, exitHref, cohortId }: S
                                                             return;
                                                         }
                                                         setSelectedItem(item);
-                                                        setIsSidebarOpen(false); // Auto-close on mobile
+                                                        setIsSidebarOpen(false);
                                                     }}
                                                     className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all ${isSelected ? 'bg-primary text-white shadow-xl shadow-purple-900/20' : 'hover:bg-white text-gray-600'}`}
                                                 >

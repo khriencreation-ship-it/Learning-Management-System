@@ -3,6 +3,7 @@
 import { Upload, Image as ImageIcon, Video } from 'lucide-react';
 import { useState } from 'react';
 import MediaPickerModal from '../media/MediaPickerModal';
+import VideoPlayer from '@/components/common/VideoPlayer';
 
 interface Stage1SetupProps {
     videoFile: File | null;
@@ -114,13 +115,9 @@ export default function Stage1Setup({
                 </label>
                 {videoPreview ? (
                     <div className="border border-gray-200 rounded-xl p-4 bg-gray-50 space-y-3">
-                        <video
+                        <VideoPlayer
                             src={videoPreview}
-                            controls
-                            controlsList="nodownload"
-                            disablePictureInPicture
-                            onContextMenu={(e) => e.preventDefault()}
-                            className="w-full max-h-64 rounded-lg bg-black"
+                            className="w-full aspect-video max-h-64"
                         />
                         <div className="flex gap-2">
                             <button
